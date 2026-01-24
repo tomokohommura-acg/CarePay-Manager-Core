@@ -1,0 +1,5 @@
+{
+  "name": "CarePay Manager Core",
+  "description": "介護・看護事業所の給与加算・減算をDX化。Gemini AI分析を搭載した、次世代型の給与改定補助プラットフォーム",
+  "requestFramePermissions": []
+}
