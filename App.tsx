@@ -41,9 +41,16 @@ const App: React.FC = () => {
   const [departmentMappings, setDepartmentMappings] = useState<DepartmentOfficeMapping[]>([]);
   const [qualificationMappings, setQualificationMappings] = useState<QualificationMapping[]>([]);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [showUnconfiguredOnly, setShowUnconfiguredOnly] = useState(false);
 
   // ダッシュボード表示用
   const [viewingStaffId, setViewingStaffId] = useState<string | null>(null);
+
+  // 職員名簿へ遷移（未設定フィルター付き）
+  const handleNavigateToStaffList = (showUnconfigured: boolean) => {
+    setActiveTab('staff_list');
+    setShowUnconfiguredOnly(showUnconfigured);
+  };
 
   // 初回ロード時: 選択中の事業所の最初の期間をセット
   useEffect(() => {
@@ -91,11 +98,21 @@ const App: React.FC = () => {
 
   // 現在の事業所 + 選択中の期間 に所属するスナップショットを抽出
   const recordKeyPrefix = `${selectedPeriodId}_`;
+  const evaluationStartDate = activePeriod?.evaluationStart ? new Date(activePeriod.evaluationStart + '-01') : null;
+
   const currentEvaluationRecords = (Object.values(evaluationRecords) as EvaluationRecord[])
     .filter(r => {
       const isCorrectOffice = r.officeId === selectedOfficeId;
       // evaluationRecordsのキー自体に期間情報が含まれている前提
       const isCorrectPeriod = Object.keys(evaluationRecords).find(key => evaluationRecords[key] === r)?.startsWith(recordKeyPrefix);
+
+      // 評価期間開始日より前に退職した職員を除外
+      const staff = staffList.find(s => s.id === r.staffId);
+      if (staff?.resignedAt && evaluationStartDate) {
+        const resignedDate = new Date(staff.resignedAt);
+        if (resignedDate < evaluationStartDate) return false;
+      }
+
       return isCorrectOffice && isCorrectPeriod;
     });
 
@@ -104,9 +121,22 @@ const App: React.FC = () => {
 
   const syncStaffFromMaster = () => {
     if (!selectedPeriodId) return alert("期間を選択してください");
-    const officeStaff = staffList.filter(s => s.officeId === selectedOfficeId);
+    if (!activePeriod) return alert("評価期間が設定されていません");
+
+    const evaluationStartDate = activePeriod.evaluationStart ? new Date(activePeriod.evaluationStart + '-01') : null;
+
+    // 評価期間開始日より前に退職した職員を除外
+    const officeStaff = staffList.filter(s => {
+      if (s.officeId !== selectedOfficeId) return false;
+      if (s.resignedAt && evaluationStartDate) {
+        const resignedDate = new Date(s.resignedAt);
+        if (resignedDate < evaluationStartDate) return false;
+      }
+      return true;
+    });
+
     let addedCount = 0;
-    
+
     setEvaluationRecords(prev => {
       const newRecords = { ...prev };
       officeStaff.forEach(staff => {
@@ -200,6 +230,8 @@ const App: React.FC = () => {
           master={currentMaster}
           onOpenSyncDialog={() => setShowSyncDialog(true)}
           smarthrConfigured={!!smarthrConfig.subdomain && !!smarthrConfig.accessToken}
+          showUnconfiguredOnly={showUnconfiguredOnly}
+          setShowUnconfiguredOnly={setShowUnconfiguredOnly}
         />
       )}
 
@@ -227,6 +259,7 @@ const App: React.FC = () => {
         masters={masters}
         staffList={staffList}
         setStaffList={setStaffList}
+        onNavigateToStaffList={handleNavigateToStaffList}
       />
       
       {activeTab === 'master' && (

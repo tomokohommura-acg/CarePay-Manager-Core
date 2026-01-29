@@ -11,6 +11,7 @@ import {
   SmartHRSyncPreview,
   SmartHRSyncItem,
   SmartHRSkippedItem,
+  SmartHRStatusChangeItem,
   QualificationMaster,
   BusinessType
 } from '../types';
@@ -126,19 +127,85 @@ export class SmartHRService {
     return allCrews;
   }
 
-  // カスタム項目テンプレート取得
+  // カスタム項目テンプレート取得（ページネーション対応）
   async getCustomFieldTemplates(): Promise<SmartHRCustomFieldTemplate[]> {
-    return this.fetch<SmartHRCustomFieldTemplate[]>('/crew_custom_field_templates');
+    const allTemplates: SmartHRCustomFieldTemplate[] = [];
+    let page = 1;
+    const perPage = 100;
+
+    while (true) {
+      const response = await this.fetch<SmartHRCustomFieldTemplate[]>(
+        `/crew_custom_field_templates?per_page=${perPage}&page=${page}`
+      );
+
+      if (!response || response.length === 0) {
+        break;
+      }
+
+      allTemplates.push(...response);
+
+      if (response.length < perPage) {
+        break;
+      }
+
+      page++;
+    }
+
+    return allTemplates;
   }
 
-  // 雇用形態一覧取得
+  // 雇用形態一覧取得（ページネーション対応）
   async getEmploymentTypes(): Promise<{ id: string; name: string }[]> {
-    return this.fetch<{ id: string; name: string }[]>('/employment_types');
+    const allTypes: { id: string; name: string }[] = [];
+    let page = 1;
+    const perPage = 100;
+
+    while (true) {
+      const response = await this.fetch<{ id: string; name: string }[]>(
+        `/employment_types?per_page=${perPage}&page=${page}`
+      );
+
+      if (!response || response.length === 0) {
+        break;
+      }
+
+      allTypes.push(...response);
+
+      if (response.length < perPage) {
+        break;
+      }
+
+      page++;
+    }
+
+    return allTypes;
   }
 
-  // 部署一覧取得
+  // 部署一覧取得（ページネーション対応）
   async getDepartments(): Promise<{ id: string; name: string; full_path_name: string }[]> {
-    return this.fetch<{ id: string; name: string; full_path_name: string }[]>('/departments');
+    const allDepartments: { id: string; name: string; full_path_name: string }[] = [];
+    let page = 1;
+    const perPage = 100;
+
+    while (true) {
+      const response = await this.fetch<{ id: string; name: string; full_path_name: string }[]>(
+        `/departments?per_page=${perPage}&page=${page}`
+      );
+
+      if (!response || response.length === 0) {
+        break;
+      }
+
+      allDepartments.push(...response);
+
+      if (response.length < perPage) {
+        break;
+      }
+
+      page++;
+    }
+
+    return allDepartments;
   }
 }
 
@@ -180,8 +247,24 @@ export function transformCrewToStaff(
   const qualifications: string[] = [];
   const businessTypeQualMasters = qualificationMasters[office.type] || [];
 
+  // 「資格①」〜「資格⑧」のパターン
+  const qualificationFieldPattern = /^資格[①②③④⑤⑥⑦⑧]$/;
+
   for (const customField of crew.custom_fields) {
-    // 該当するマッピングを検索
+    // 「資格①」〜「資格⑧」のカスタム項目を自動処理
+    if (qualificationFieldPattern.test(customField.template.name)) {
+      if (customField.value && typeof customField.value === 'object' && customField.value.name) {
+        // プルダウンの値（資格名）と資格マスタの名前を照合
+        const qualName = customField.value.name;
+        const matchingQual = businessTypeQualMasters.find(q => q.name === qualName);
+        if (matchingQual && !qualifications.includes(matchingQual.id)) {
+          qualifications.push(matchingQual.id);
+        }
+      }
+      continue;
+    }
+
+    // 従来のマッピング処理（手動設定されたマッピング用）
     const matchingMappings = qualificationMappings.filter(m =>
       m.businessType === office.type &&
       m.smarthrFieldId === customField.template.id
@@ -237,12 +320,42 @@ export function generateSyncPreview(
 ): SmartHRSyncPreview {
   const toAdd: SmartHRSyncItem[] = [];
   const toUpdate: SmartHRSyncItem[] = [];
+  const statusChanges: SmartHRStatusChangeItem[] = [];
   const skipped: SmartHRSkippedItem[] = [];
 
+  // 処理済みの既存職員IDを追跡
+  const processedStaffIds = new Set<string>();
+
   for (const crew of crews) {
+    // 既存職員との照合（最初に行う）
+    const existingByCrewId = existingStaff.find(s => s.smarthrCrewId === crew.id);
+    const existingByEmpCode = crew.emp_code
+      ? existingStaff.find(s => s.smarthrEmpCode === crew.emp_code)
+      : null;
+    const existing = existingByCrewId || existingByEmpCode;
+
+    if (existing) {
+      processedStaffIds.add(existing.id);
+    }
+
     // 雇用形態でフィルタ
-    if (employmentTypeFilter.length > 0) {
-      if (!crew.employment_type || !employmentTypeFilter.includes(crew.employment_type.id)) {
+    const isEmploymentTypeFiltered = employmentTypeFilter.length > 0 &&
+      (!crew.employment_type || !employmentTypeFilter.includes(crew.employment_type.id));
+
+    if (isEmploymentTypeFiltered) {
+      // 既存職員の雇用形態が変更された場合
+      if (existing && !existing.resignedAt) {
+        statusChanges.push({
+          staffId: existing.id,
+          smarthrCrewId: crew.id,
+          empCode: crew.emp_code || '',
+          name: existing.name,
+          changeType: 'employment_type_changed',
+          changeDetail: crew.employment_type
+            ? `雇用形態が「${crew.employment_type.name}」に変更されました`
+            : '雇用形態が未設定になりました'
+        });
+      } else {
         skipped.push({
           smarthrCrewId: crew.id,
           empCode: crew.emp_code || '',
@@ -251,8 +364,31 @@ export function generateSyncPreview(
             ? `雇用形態「${crew.employment_type.name}」は同期対象外`
             : '雇用形態が未設定'
         });
-        continue;
       }
+      continue;
+    }
+
+    // 退職チェック
+    if (crew.resigned_at) {
+      if (existing && !existing.resignedAt) {
+        statusChanges.push({
+          staffId: existing.id,
+          smarthrCrewId: crew.id,
+          empCode: crew.emp_code || '',
+          name: existing.name,
+          changeType: 'resigned',
+          changeDetail: `退職日: ${crew.resigned_at}`,
+          resignedAt: crew.resigned_at
+        });
+      } else {
+        skipped.push({
+          smarthrCrewId: crew.id,
+          empCode: crew.emp_code || '',
+          name: `${crew.last_name} ${crew.first_name}`.trim(),
+          reason: '退職済み'
+        });
+      }
+      continue;
     }
 
     const result = transformCrewToStaff(
@@ -275,13 +411,6 @@ export function generateSyncPreview(
 
     const office = offices.find(o => o.id === result.officeId);
 
-    // 既存職員との照合（emp_codeまたはsmarthrCrewIdで）
-    const existingByCrewId = existingStaff.find(s => s.smarthrCrewId === crew.id);
-    const existingByEmpCode = crew.emp_code
-      ? existingStaff.find(s => s.smarthrEmpCode === crew.emp_code)
-      : null;
-    const existing = existingByCrewId || existingByEmpCode;
-
     const syncItem: SmartHRSyncItem = {
       smarthrCrewId: crew.id,
       empCode: crew.emp_code || '',
@@ -302,7 +431,7 @@ export function generateSyncPreview(
     }
   }
 
-  return { toAdd, toUpdate, skipped };
+  return { toAdd, toUpdate, statusChanges, skipped };
 }
 
 // 同期実行

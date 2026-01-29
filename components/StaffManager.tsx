@@ -2,6 +2,8 @@
 import React, { useState } from 'react';
 import { Staff, MasterData } from '../types';
 
+const DEFAULT_BASE_SALARY = 200000;
+
 interface StaffManagerProps {
   staffList: Staff[];
   setStaffList: React.Dispatch<React.SetStateAction<Staff[]>>;
@@ -9,6 +11,8 @@ interface StaffManagerProps {
   master: MasterData;
   onOpenSyncDialog?: () => void;
   smarthrConfigured?: boolean;
+  showUnconfiguredOnly?: boolean;
+  setShowUnconfiguredOnly?: (value: boolean) => void;
 }
 
 export const StaffManager: React.FC<StaffManagerProps> = ({
@@ -17,10 +21,19 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
   selectedOfficeId,
   master,
   onOpenSyncDialog,
-  smarthrConfigured
+  smarthrConfigured,
+  showUnconfiguredOnly = false,
+  setShowUnconfiguredOnly
 }) => {
   const [deleteTargetId, setDeleteTargetId] = useState<{id: string, name: string} | null>(null);
-  const officeStaff = staffList.filter(s => s.officeId === selectedOfficeId);
+
+  // 基本給未設定（デフォルト値）の職員をフィルタリング
+  const allOfficeStaff = staffList.filter(s => s.officeId === selectedOfficeId);
+  const officeStaff = showUnconfiguredOnly
+    ? allOfficeStaff.filter(s => s.baseSalary === DEFAULT_BASE_SALARY)
+    : allOfficeStaff;
+
+  const unconfiguredCount = allOfficeStaff.filter(s => s.baseSalary === DEFAULT_BASE_SALARY).length;
 
   const handleUpdateStaff = (staffId: string, field: keyof Staff, value: any) => {
     setStaffList(prev => prev.map(s => s.id === staffId ? { ...s, [field]: value } : s));
@@ -103,6 +116,28 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
           <button onClick={handleAddStaff} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center gap-2"><span>+</span> 職員を新規登録</button>
         </div>
       </div>
+
+      {/* 未設定フィルター */}
+      {unconfiguredCount > 0 && setShowUnconfiguredOnly && (
+        <div className="flex items-center justify-between bg-amber-50 rounded-xl p-4 border border-amber-100">
+          <div className="flex items-center gap-2">
+            <span className="text-amber-600 text-lg">⚠️</span>
+            <span className="text-sm text-amber-700">
+              <strong>{unconfiguredCount}名</strong>の基本給が未設定（デフォルト値: ¥{DEFAULT_BASE_SALARY.toLocaleString()}）です
+            </span>
+          </div>
+          <button
+            onClick={() => setShowUnconfiguredOnly(!showUnconfiguredOnly)}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+              showUnconfiguredOnly
+                ? 'bg-amber-600 text-white'
+                : 'bg-white text-amber-600 border border-amber-300 hover:bg-amber-100'
+            }`}
+          >
+            {showUnconfiguredOnly ? '全員を表示' : '未設定のみ表示'}
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <table className="w-full text-left">

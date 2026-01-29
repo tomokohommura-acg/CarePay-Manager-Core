@@ -124,6 +124,7 @@ export interface QualificationMapping {
 export interface SmartHRSyncPreview {
   toAdd: SmartHRSyncItem[];
   toUpdate: SmartHRSyncItem[];
+  statusChanges: SmartHRStatusChangeItem[];  // 退職・雇用形態変更
   skipped: SmartHRSkippedItem[];
 }
 
@@ -138,6 +139,16 @@ export interface SmartHRSyncItem {
   enteredAt?: string;
   resignedAt?: string;
   existingStaffId?: string;
+}
+
+export interface SmartHRStatusChangeItem {
+  staffId: string;
+  smarthrCrewId: string;
+  empCode: string;
+  name: string;
+  changeType: 'resigned' | 'employment_type_changed';
+  changeDetail: string;
+  resignedAt?: string;
 }
 
 export interface SmartHRSkippedItem {

@@ -103,6 +103,17 @@ export const SmartHRSettings: React.FC<SmartHRSettingsProps> = ({
       setSmarthrDepartments(depts);
       setSmarthrEmploymentTypes(empTypes);
       setSmarthrCustomFieldTemplates(templates);
+
+      // 「正社員」を自動でフィルタに追加（未設定の場合のみ）
+      if (config.employmentTypeFilter.length === 0) {
+        const seishain = empTypes.find(t => t.name === '正社員');
+        if (seishain) {
+          setConfig(prev => ({
+            ...prev,
+            employmentTypeFilter: [seishain.id]
+          }));
+        }
+      }
     } catch (error) {
       console.error('Failed to load SmartHR metadata:', error);
     } finally {
