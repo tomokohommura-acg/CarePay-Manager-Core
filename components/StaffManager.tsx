@@ -7,13 +7,17 @@ interface StaffManagerProps {
   setStaffList: React.Dispatch<React.SetStateAction<Staff[]>>;
   selectedOfficeId: string;
   master: MasterData;
+  onOpenSyncDialog?: () => void;
+  smarthrConfigured?: boolean;
 }
 
 export const StaffManager: React.FC<StaffManagerProps> = ({
   staffList,
   setStaffList,
   selectedOfficeId,
-  master
+  master,
+  onOpenSyncDialog,
+  smarthrConfigured
 }) => {
   const [deleteTargetId, setDeleteTargetId] = useState<{id: string, name: string} | null>(null);
   const officeStaff = staffList.filter(s => s.officeId === selectedOfficeId);
@@ -81,7 +85,23 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
 
       <div className="flex items-center justify-between">
         <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">👥 職員名簿・基本給管理</h3>
-        <button onClick={handleAddStaff} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center gap-2"><span>+</span> 職員を新規登録</button>
+        <div className="flex items-center gap-2">
+          {onOpenSyncDialog && (
+            <button
+              onClick={onOpenSyncDialog}
+              disabled={!smarthrConfigured}
+              title={smarthrConfigured ? 'SmartHRから従業員データを同期' : 'SmartHR連携設定を完了してください'}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+                smarthrConfigured
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-100'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              🔄 SmartHRから同期
+            </button>
+          )}
+          <button onClick={handleAddStaff} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center gap-2"><span>+</span> 職員を新規登録</button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -89,6 +109,8 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">氏名</th>
+              <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">入社日</th>
+              <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">退職日</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">基本給 (月額)</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">保有資格 (★=優先反映)</th>
               <th className="px-6 py-4 w-20"></th>
@@ -98,9 +120,15 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
             {officeStaff.map(s => {
               const primaryQualId = getPrimaryQualId(s.qualifications);
               return (
-                <tr key={s.id} className="hover:bg-slate-50/50 transition-colors">
+                <tr key={s.id} className={`hover:bg-slate-50/50 transition-colors ${s.resignedAt ? 'opacity-50' : ''}`}>
                   <td className="px-6 py-4">
                     <input type="text" value={s.name} onChange={(e) => handleUpdateStaff(s.id, 'name', e.target.value)} className="w-full bg-transparent border-none focus:ring-0 font-medium text-slate-700 p-0" placeholder="氏名を入力" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <input type="date" value={s.enteredAt || ''} onChange={(e) => handleUpdateStaff(s.id, 'enteredAt', e.target.value || undefined)} className="bg-transparent border-none focus:ring-0 text-sm text-slate-600 p-0" />
+                  </td>
+                  <td className="px-4 py-4">
+                    <input type="date" value={s.resignedAt || ''} onChange={(e) => handleUpdateStaff(s.id, 'resignedAt', e.target.value || undefined)} className="bg-transparent border-none focus:ring-0 text-sm text-slate-600 p-0" />
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1">

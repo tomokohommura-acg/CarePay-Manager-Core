@@ -6,13 +6,23 @@ import { StaffInput } from './components/StaffInput';
 import { StaffManager } from './components/StaffManager';
 import { HistoryView } from './components/HistoryView';
 import { StaffDashboard } from './components/StaffDashboard';
-import { BusinessType, MasterData, Staff, StaffUpdateData, Office, HistoryEntry, EvaluationRecord, EvaluationPeriodMaster } from './types';
+import { SmartHRSettings } from './components/SmartHRSettings';
+import { SmartHRSyncDialog } from './components/SmartHRSyncDialog';
+import { BusinessType, MasterData, Staff, StaffUpdateData, Office, HistoryEntry, EvaluationRecord, EvaluationPeriodMaster, SmartHRConfig, DepartmentOfficeMapping, QualificationMapping } from './types';
 import { DEFAULT_MASTERS, INITIAL_STAFF, INITIAL_OFFICES } from './constants';
 
 const STORAGE_KEY = 'carepay_v2_state';
 
+const DEFAULT_SMARTHR_CONFIG: SmartHRConfig = {
+  subdomain: '',
+  accessToken: '',
+  employmentTypeFilter: [],
+  lastSyncedAt: null,
+  storeToken: true
+};
+
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'staff' | 'staff_list' | 'master' | 'history' | 'export'>('staff');
+  const [activeTab, setActiveTab] = useState<'staff' | 'staff_list' | 'master' | 'history' | 'export' | 'smarthr_settings'>('staff');
   const [offices, setOffices] = useState<Office[]>(INITIAL_OFFICES);
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>(offices[0].id);
   const [masters, setMasters] = useState<Record<BusinessType, MasterData>>(DEFAULT_MASTERS);
@@ -22,9 +32,15 @@ const App: React.FC = () => {
   const [inputs, setInputs] = useState<Record<string, StaffUpdateData>>({});
   const [evaluationRecords, setEvaluationRecords] = useState<Record<string, EvaluationRecord>>({});
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  
+
   // 現在選択されている評価期間ID
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+
+  // SmartHR連携設定
+  const [smarthrConfig, setSmarthrConfig] = useState<SmartHRConfig>(DEFAULT_SMARTHR_CONFIG);
+  const [departmentMappings, setDepartmentMappings] = useState<DepartmentOfficeMapping[]>([]);
+  const [qualificationMappings, setQualificationMappings] = useState<QualificationMapping[]>([]);
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
 
   // ダッシュボード表示用
   const [viewingStaffId, setViewingStaffId] = useState<string | null>(null);
@@ -51,6 +67,9 @@ const App: React.FC = () => {
         if (parsed.evaluationRecords) setEvaluationRecords(parsed.evaluationRecords);
         if (parsed.offices) setOffices(parsed.offices);
         if (parsed.selectedPeriodId) setSelectedPeriodId(parsed.selectedPeriodId);
+        if (parsed.smarthrConfig) setSmarthrConfig(parsed.smarthrConfig);
+        if (parsed.departmentMappings) setDepartmentMappings(parsed.departmentMappings);
+        if (parsed.qualificationMappings) setQualificationMappings(parsed.qualificationMappings);
       } catch (e) {
         console.error("Failed to load state", e);
       }
@@ -60,9 +79,10 @@ const App: React.FC = () => {
   // 状態が変わるたびに保存
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      masters, staffList, inputs, history, evaluationRecords, offices, selectedPeriodId
+      masters, staffList, inputs, history, evaluationRecords, offices, selectedPeriodId,
+      smarthrConfig, departmentMappings, qualificationMappings
     }));
-  }, [masters, staffList, inputs, history, evaluationRecords, offices, selectedPeriodId]);
+  }, [masters, staffList, inputs, history, evaluationRecords, offices, selectedPeriodId, smarthrConfig, departmentMappings, qualificationMappings]);
 
   const selectedOffice = offices.find(o => o.id === selectedOfficeId) || offices[0];
   const businessType = selectedOffice.type;
@@ -178,19 +198,50 @@ const App: React.FC = () => {
           setStaffList={setStaffList}
           selectedOfficeId={selectedOfficeId}
           master={currentMaster}
+          onOpenSyncDialog={() => setShowSyncDialog(true)}
+          smarthrConfigured={!!smarthrConfig.subdomain && !!smarthrConfig.accessToken}
         />
       )}
+
+      {activeTab === 'smarthr_settings' && (
+        <SmartHRSettings
+          config={smarthrConfig}
+          setConfig={setSmarthrConfig}
+          departmentMappings={departmentMappings}
+          setDepartmentMappings={setDepartmentMappings}
+          qualificationMappings={qualificationMappings}
+          setQualificationMappings={setQualificationMappings}
+          offices={offices}
+          masters={masters}
+        />
+      )}
+
+      <SmartHRSyncDialog
+        isOpen={showSyncDialog}
+        onClose={() => setShowSyncDialog(false)}
+        config={smarthrConfig}
+        setConfig={setSmarthrConfig}
+        departmentMappings={departmentMappings}
+        qualificationMappings={qualificationMappings}
+        offices={offices}
+        masters={masters}
+        staffList={staffList}
+        setStaffList={setStaffList}
+      />
       
       {activeTab === 'master' && (
-        <MasterManager 
-          data={currentMaster} 
-          onUpdate={handleUpdateMaster} 
+        <MasterManager
+          data={currentMaster}
+          onUpdate={handleUpdateMaster}
           title={businessType === BusinessType.HOME_CARE ? '訪問介護' : '訪問看護'}
           businessType={businessType}
           offices={offices}
           setOffices={setOffices}
           selectedOfficeId={selectedOfficeId}
           setSelectedOfficeId={setSelectedOfficeId}
+          smarthrConfig={smarthrConfig}
+          departmentMappings={departmentMappings}
+          setDepartmentMappings={setDepartmentMappings}
         />
       )}
 

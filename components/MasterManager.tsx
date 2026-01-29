@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
-import { MasterData, QualificationMaster, AttendanceConditionMaster, PerformanceEvaluationMaster, Office, BusinessType, EvaluationPeriodMaster } from '../types';
+import React, { useState, useEffect } from 'react';
+import { MasterData, QualificationMaster, AttendanceConditionMaster, PerformanceEvaluationMaster, Office, BusinessType, EvaluationPeriodMaster, SmartHRConfig, DepartmentOfficeMapping } from '../types';
+import { SmartHRService, deobfuscateToken } from '../services/smarthrService';
 
 interface MasterManagerProps {
   data: MasterData;
@@ -11,6 +12,9 @@ interface MasterManagerProps {
   setOffices: React.Dispatch<React.SetStateAction<Office[]>>;
   selectedOfficeId: string;
   setSelectedOfficeId: (id: string) => void;
+  smarthrConfig?: SmartHRConfig;
+  departmentMappings: DepartmentOfficeMapping[];
+  setDepartmentMappings: React.Dispatch<React.SetStateAction<DepartmentOfficeMapping[]>>;
 }
 
 type DeleteTarget = {
@@ -19,17 +23,92 @@ type DeleteTarget = {
   name: string;
 } | null;
 
-export const MasterManager: React.FC<MasterManagerProps> = ({ 
-  data, 
-  onUpdate, 
+export const MasterManager: React.FC<MasterManagerProps> = ({
+  data,
+  onUpdate,
   title,
   businessType,
   offices,
   setOffices,
   selectedOfficeId,
-  setSelectedOfficeId
+  setSelectedOfficeId,
+  smarthrConfig,
+  departmentMappings,
+  setDepartmentMappings
 }) => {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
+  const [smarthrDepartments, setSmarthrDepartments] = useState<{ id: string; name: string; full_path_name: string }[]>([]);
+  const [isLoadingDepts, setIsLoadingDepts] = useState(false);
+  const [showAddOfficeModal, setShowAddOfficeModal] = useState(false);
+  const [newOfficeDeptId, setNewOfficeDeptId] = useState('');
+  const [nameChanges, setNameChanges] = useState<{ officeId: string; officeName: string; newName: string }[]>([]);
+  const [showNameChangeModal, setShowNameChangeModal] = useState(false);
+
+  // SmartHR部署一覧を取得
+  useEffect(() => {
+    const loadDepartments = async () => {
+      if (!smarthrConfig?.subdomain || !smarthrConfig?.accessToken) return;
+
+      setIsLoadingDepts(true);
+      try {
+        const token = deobfuscateToken(smarthrConfig.accessToken);
+        const service = new SmartHRService(smarthrConfig.subdomain, token);
+        const depts = await service.getDepartments();
+        setSmarthrDepartments(depts);
+
+        // 部署名の変更を検出
+        const changes: { officeId: string; officeName: string; newName: string }[] = [];
+        offices.forEach(office => {
+          if (office.smarthrDepartmentId) {
+            const dept = depts.find(d => d.id === office.smarthrDepartmentId);
+            if (dept && dept.name !== office.name) {
+              changes.push({
+                officeId: office.id,
+                officeName: office.name,
+                newName: dept.name
+              });
+            }
+          }
+        });
+
+        if (changes.length > 0) {
+          setNameChanges(changes);
+          setShowNameChangeModal(true);
+        }
+      } catch (error) {
+        console.error('Failed to load departments:', error);
+      } finally {
+        setIsLoadingDepts(false);
+      }
+    };
+    loadDepartments();
+  }, [smarthrConfig?.subdomain, smarthrConfig?.accessToken]);
+
+  const isSmartHRConfigured = !!smarthrConfig?.subdomain && !!smarthrConfig?.accessToken;
+
+  // 部署名の変更を適用
+  const applyNameChanges = () => {
+    setOffices(prev => prev.map(office => {
+      const change = nameChanges.find(c => c.officeId === office.id);
+      if (change) {
+        return { ...office, name: change.newName };
+      }
+      return office;
+    }));
+
+    // DepartmentOfficeMappingの名前も更新
+    setDepartmentMappings(prev => prev.map(mapping => {
+      const office = offices.find(o => o.smarthrDepartmentId === mapping.smarthrDepartmentId);
+      const change = office ? nameChanges.find(c => c.officeId === office.id) : null;
+      if (change) {
+        return { ...mapping, smarthrDepartmentName: change.newName };
+      }
+      return mapping;
+    }));
+
+    setShowNameChangeModal(false);
+    setNameChanges([]);
+  };
   
   const handleUpdatePeriod = (id: string, field: keyof EvaluationPeriodMaster, value: any) => {
     onUpdate({
@@ -97,13 +176,85 @@ export const MasterManager: React.FC<MasterManagerProps> = ({
   };
 
   const handleAddOffice = () => {
+    if (isSmartHRConfigured && smarthrDepartments.length > 0) {
+      setShowAddOfficeModal(true);
+      setNewOfficeDeptId('');
+    } else {
+      // SmartHR未設定の場合は従来通り
+      const newOffice: Office = {
+        id: crypto.randomUUID(),
+        name: businessType === BusinessType.HOME_CARE ? '新規訪問介護事業所' : '新規訪問看護ステーション',
+        type: businessType
+      };
+      setOffices(prev => [...prev, newOffice]);
+      setSelectedOfficeId(newOffice.id);
+    }
+  };
+
+  const handleConfirmAddOffice = () => {
+    if (!newOfficeDeptId) return;
+    const dept = smarthrDepartments.find(d => d.id === newOfficeDeptId);
+    if (!dept) return;
+
     const newOffice: Office = {
       id: crypto.randomUUID(),
-      name: businessType === BusinessType.HOME_CARE ? '新規訪問介護事業所' : '新規訪問看護ステーション',
-      type: businessType
+      name: dept.name,
+      type: businessType,
+      smarthrDepartmentId: dept.id
     };
     setOffices(prev => [...prev, newOffice]);
     setSelectedOfficeId(newOffice.id);
+
+    // DepartmentOfficeMappingも自動で追加
+    setDepartmentMappings(prev => [
+      ...prev.filter(m => m.smarthrDepartmentId !== dept.id),
+      {
+        smarthrDepartmentId: dept.id,
+        smarthrDepartmentName: dept.name,
+        officeId: newOffice.id
+      }
+    ]);
+
+    setShowAddOfficeModal(false);
+    setNewOfficeDeptId('');
+  };
+
+  // 事業所のSmartHR部署を変更
+  const handleChangeOfficeDepartment = (officeId: string, deptId: string) => {
+    const dept = smarthrDepartments.find(d => d.id === deptId);
+    const office = offices.find(o => o.id === officeId);
+    if (!office) return;
+
+    // 旧マッピングを削除
+    if (office.smarthrDepartmentId) {
+      setDepartmentMappings(prev => prev.filter(m => m.smarthrDepartmentId !== office.smarthrDepartmentId));
+    }
+
+    // 事業所を更新
+    setOffices(prev => prev.map(o =>
+      o.id === officeId
+        ? { ...o, smarthrDepartmentId: deptId || undefined }
+        : o
+    ));
+
+    // 新マッピングを追加
+    if (deptId && dept) {
+      setDepartmentMappings(prev => [
+        ...prev.filter(m => m.smarthrDepartmentId !== deptId),
+        {
+          smarthrDepartmentId: deptId,
+          smarthrDepartmentName: dept.name,
+          officeId: officeId
+        }
+      ]);
+    }
+  };
+
+  // 使用済み部署IDを取得（他の事業所で既に使われている部署）
+  const getUsedDepartmentIds = (excludeOfficeId?: string) => {
+    return offices
+      .filter(o => o.id !== excludeOfficeId && o.smarthrDepartmentId)
+      .map(o => o.smarthrDepartmentId!);
   };
 
   const handleUpdateOfficeName = (id: string, name: string) => {
@@ -150,32 +301,167 @@ export const MasterManager: React.FC<MasterManagerProps> = ({
         </div>
       )}
 
+      {/* 部署名変更確認モーダル */}
+      {showNameChangeModal && nameChanges.length > 0 && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowNameChangeModal(false)}></div>
+          <div className="relative bg-white rounded-3xl shadow-2xl p-8 max-w-lg w-full animate-in fade-in zoom-in duration-200">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">🔄</div>
+              <h4 className="text-xl font-bold text-slate-800">SmartHRで部署名が変更されています</h4>
+              <p className="text-sm text-slate-500 mt-1">以下の事業所名を更新しますか？</p>
+            </div>
+            <div className="space-y-3 mb-6 max-h-64 overflow-y-auto">
+              {nameChanges.map(change => (
+                <div key={change.officeId} className="bg-slate-50 rounded-xl p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="text-sm text-slate-500 line-through">{change.officeName}</div>
+                      <div className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <span className="text-emerald-500">→</span>
+                        {change.newName}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowNameChangeModal(false);
+                  setNameChanges([]);
+                }}
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200"
+              >
+                スキップ
+              </button>
+              <button
+                onClick={applyNameChanges}
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg"
+              >
+                更新する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 事業所追加モーダル */}
+      {showAddOfficeModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowAddOfficeModal(false)}></div>
+          <div className="relative bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full animate-in fade-in zoom-in duration-200">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">🏢</div>
+              <h4 className="text-xl font-bold text-slate-800">SmartHR部署から事業所を追加</h4>
+              <p className="text-sm text-slate-500 mt-1">連携する部署を選択してください</p>
+            </div>
+            <div className="mb-6">
+              <label className="block text-sm font-bold text-slate-700 mb-2">SmartHR 部署</label>
+              <select
+                value={newOfficeDeptId}
+                onChange={(e) => setNewOfficeDeptId(e.target.value)}
+                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="">-- 部署を選択 --</option>
+                {smarthrDepartments
+                  .filter(d => !getUsedDepartmentIds().includes(d.id))
+                  .map(dept => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.full_path_name || dept.name}
+                    </option>
+                  ))}
+              </select>
+              {smarthrDepartments.length > 0 && smarthrDepartments.filter(d => !getUsedDepartmentIds().includes(d.id)).length === 0 && (
+                <p className="text-xs text-amber-600 mt-2">すべての部署が既に事業所に割り当てられています</p>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowAddOfficeModal(false)} className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200">キャンセル</button>
+              <button
+                onClick={handleConfirmAddOffice}
+                disabled={!newOfficeDeptId}
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                追加する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. 事業所リスト (一番上に移動) */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">🏢 {title}事業所リスト</h3>
-          <button onClick={handleAddOffice} className={`text-sm px-4 py-2 rounded-xl font-bold text-white shadow-md ${isHomeCare ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}>+ 新規事業所を追加</button>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto custom-scrollbar">
-            {filteredOffices.map(office => (
-              <div key={office.id} className={`flex items-center px-6 py-4 gap-4 ${selectedOfficeId === office.id ? (isHomeCare ? 'bg-orange-50/40' : 'bg-blue-50/40') : 'hover:bg-slate-50'}`}>
-                <input 
-                  type="text" 
-                  value={office.name} 
-                  onChange={(e) => handleUpdateOfficeName(office.id, e.target.value)} 
-                  className="flex-1 bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-100 rounded p-1" 
-                />
-                <button 
-                  onClick={() => setDeleteTarget({ id: office.id, type: 'office', name: office.name })} 
-                  className="text-slate-300 hover:text-rose-500 transition-colors"
-                >
-                  🗑️
-                </button>
-              </div>
-            ))}
+          <div className="flex items-center gap-2">
+            {isSmartHRConfigured && isLoadingDepts && (
+              <span className="text-xs text-slate-400">部署読込中...</span>
+            )}
+            <button onClick={handleAddOffice} className={`text-sm px-4 py-2 rounded-xl font-bold text-white shadow-md ${isHomeCare ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-600 hover:bg-blue-700'}`}>+ 新規事業所を追加</button>
           </div>
         </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">事業所名</th>
+                {isSmartHRConfigured && (
+                  <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-widest">SmartHR 部署</th>
+                )}
+                <th className="w-16"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredOffices.map(office => (
+                <tr key={office.id} className={`${selectedOfficeId === office.id ? (isHomeCare ? 'bg-orange-50/40' : 'bg-blue-50/40') : 'hover:bg-slate-50'}`}>
+                  <td className="px-6 py-4">
+                    <input
+                      type="text"
+                      value={office.name}
+                      onChange={(e) => handleUpdateOfficeName(office.id, e.target.value)}
+                      className="w-full bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-100 rounded p-1"
+                    />
+                  </td>
+                  {isSmartHRConfigured && (
+                    <td className="px-6 py-4">
+                      <select
+                        value={office.smarthrDepartmentId || ''}
+                        onChange={(e) => handleChangeOfficeDepartment(office.id, e.target.value)}
+                        className="w-full px-2 py-1 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 bg-white"
+                      >
+                        <option value="">-- 未連携 --</option>
+                        {smarthrDepartments
+                          .filter(d => d.id === office.smarthrDepartmentId || !getUsedDepartmentIds(office.id).includes(d.id))
+                          .map(dept => (
+                            <option key={dept.id} value={dept.id}>
+                              {dept.full_path_name || dept.name}
+                            </option>
+                          ))}
+                      </select>
+                    </td>
+                  )}
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={() => setDeleteTarget({ id: office.id, type: 'office', name: office.name })}
+                      className="text-slate-300 hover:text-rose-500 transition-colors"
+                    >
+                      🗑️
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {isSmartHRConfigured && (
+          <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+            <p className="text-xs text-emerald-700">
+              <strong>SmartHR連携:</strong> 各事業所にSmartHRの部署を紐づけると、従業員同期時に自動で振り分けられます。
+            </p>
+          </div>
+        )}
       </section>
 
       {/* 2. 評価期間マスタ */}

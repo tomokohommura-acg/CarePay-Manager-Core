@@ -68,3 +68,123 @@ Gemini APIで給与データの傾向分析を実行。
 ### Styling
 
 Tailwind CSS（CDN経由）+ カスタムフォント（Inter, Noto Sans JP）
+
+---
+
+## SmartHR API連携
+
+### 概要
+
+SmartHRから従業員データを取得し、職員名簿に自動同期する機能。部署→事業所、カスタム項目→資格のマッピングにより、手動入力の手間を削減。
+
+### 関連ファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `types/smarthr.ts` | SmartHR APIレスポンス型定義 |
+| `services/smarthrService.ts` | API呼び出し、データ変換、同期処理 |
+| `components/SmartHRSettings.tsx` | 接続設定・マッピング設定UI |
+| `components/QualificationMapping.tsx` | 資格マッピング設定UI |
+| `components/SmartHRSyncDialog.tsx` | 同期プレビュー・実行ダイアログ |
+
+### データモデル（`types.ts`に追加）
+
+```typescript
+// SmartHR連携設定
+interface SmartHRConfig {
+  subdomain: string;           // SmartHRサブドメイン
+  accessToken: string;         // APIトークン（難読化して保存）
+  employmentTypeFilter: string[]; // 同期対象の雇用形態ID
+  lastSyncedAt: string | null;
+  storeToken: boolean;
+}
+
+// 部署→事業所マッピング
+interface DepartmentOfficeMapping {
+  smarthrDepartmentId: string;
+  smarthrDepartmentName: string;
+  officeId: string;
+}
+
+// カスタム項目→資格マッピング
+interface QualificationMapping {
+  id: string;
+  smarthrFieldId: string;
+  smarthrFieldName: string;
+  smarthrValueId: string | null;
+  smarthrValueName: string | null;
+  qualificationId: string;
+  businessType: BusinessType;
+}
+
+// Staff型の拡張フィールド
+interface Staff {
+  // ...既存フィールド
+  enteredAt?: string;        // 入社日
+  resignedAt?: string;       // 退職日
+  smarthrEmpCode?: string;   // SmartHR社員番号
+  smarthrCrewId?: string;    // SmartHR従業員ID
+  smarthrSyncedAt?: string;  // 最終同期日時
+}
+
+// Office型の拡張フィールド
+interface Office {
+  // ...既存フィールド
+  smarthrDepartmentId?: string; // 紐付けSmartHR部署ID
+}
+```
+
+### 同期フロー
+
+```
+1. SmartHR APIから全従業員を取得
+2. 雇用形態フィルタで対象を絞り込み
+3. 部署→事業所マッピングで振り分け
+4. カスタム項目→資格マッピングで資格を紐付け
+5. 既存職員はemp_code/crewIdで照合して更新
+6. 新規職員は追加
+7. マッピング未設定の従業員はスキップ（理由表示）
+```
+
+### セキュリティ
+
+- APIトークンはBase64+XOR難読化してLocalStorageに保存
+- 「トークンを保存しない」オプションあり（メモリ保持のみ）
+- 難読化関数: `obfuscateToken()` / `deobfuscateToken()`（`smarthrService.ts`）
+
+### 使用するSmartHR APIエンドポイント
+
+| エンドポイント | 用途 |
+|---------------|------|
+| `GET /api/v1/crews` | 従業員一覧取得 |
+| `GET /api/v1/departments` | 部署一覧取得 |
+| `GET /api/v1/employment_types` | 雇用形態一覧取得 |
+| `GET /api/v1/crew_custom_field_templates` | カスタム項目テンプレート取得 |
+
+### エラーハンドリング
+
+| HTTPステータス | メッセージ |
+|---------------|----------|
+| 401 | アクセストークンが無効です |
+| 403 | APIへのアクセス権限がありません |
+| 429 | API呼び出し回数制限に達しました |
+| ネットワークエラー | インターネット接続を確認してください |
+
+### 部署名変更の自動検出
+
+マスタ管理画面を開くと、SmartHRから部署情報を自動取得し、紐付け済み事業所の名前と比較。差分があれば確認ダイアログを表示し、ユーザー承認後に事業所名を一括更新。
+
+### 設定手順
+
+1. SmartHR管理画面で[APIアクセストークンを発行](https://support.smarthr.jp/ja/help/articles/360026266033/)
+2. 本アプリの「SmartHR連携」画面でサブドメイン・トークンを入力
+3. 「接続テスト」で疎通確認
+4. 「部署マッピング」タブでSmartHR部署→事業所を設定
+5. 「資格マッピング」タブでカスタム項目→資格を設定
+6. 職員名簿の「SmartHRから同期」ボタンで同期実行
+
+### 注意事項
+
+- 基本給はSmartHRから取得不可（手動入力または既存値を維持）
+- カスタム項目の閲覧権限をトークンに付与する必要あり
+- CORS制約によりブラウザから直接APIを叩く（将来的にCloud Functions経由を検討）

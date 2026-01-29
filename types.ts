@@ -8,6 +8,7 @@ export interface Office {
   id: string;
   name: string;
   type: BusinessType;
+  smarthrDepartmentId?: string;
 }
 
 export interface QualificationMaster {
@@ -53,8 +54,15 @@ export interface Staff {
   officeId: string;
   name: string;
   baseSalary: number;
-  qualifications: string[]; 
-  previousSalary?: number; 
+  qualifications: string[];
+  previousSalary?: number;
+  // 入社日・退職日
+  enteredAt?: string;
+  resignedAt?: string;
+  // SmartHR連携用
+  smarthrEmpCode?: string;
+  smarthrCrewId?: string;
+  smarthrSyncedAt?: string;
 }
 
 export interface EvaluationRecord {
@@ -79,8 +87,62 @@ export interface HistoryEntry {
   officeId: string;
   officeName: string;
   timestamp: string;
-  period: EvaluationPeriodMaster; 
+  period: EvaluationPeriodMaster;
   masterSnapshot: MasterData;
   recordsSnapshot: Record<string, EvaluationRecord>;
   inputs: Record<string, StaffUpdateData>;
+}
+
+// SmartHR連携設定
+export interface SmartHRConfig {
+  subdomain: string;
+  accessToken: string;
+  employmentTypeFilter: string[]; // 正社員のIDリスト
+  lastSyncedAt: string | null;
+  storeToken: boolean; // トークンを保存するかどうか
+}
+
+// 部署→事業所マッピング
+export interface DepartmentOfficeMapping {
+  smarthrDepartmentId: string;
+  smarthrDepartmentName: string;
+  officeId: string;
+}
+
+// 資格マッピング
+export interface QualificationMapping {
+  id: string;
+  smarthrFieldId: string;
+  smarthrFieldName: string;
+  smarthrValueId: string | null;
+  smarthrValueName: string | null;
+  qualificationId: string;
+  businessType: BusinessType;
+}
+
+// SmartHR同期結果
+export interface SmartHRSyncPreview {
+  toAdd: SmartHRSyncItem[];
+  toUpdate: SmartHRSyncItem[];
+  skipped: SmartHRSkippedItem[];
+}
+
+export interface SmartHRSyncItem {
+  smarthrCrewId: string;
+  empCode: string;
+  name: string;
+  department: string | null;
+  officeId: string;
+  officeName: string;
+  qualifications: string[];
+  enteredAt?: string;
+  resignedAt?: string;
+  existingStaffId?: string;
+}
+
+export interface SmartHRSkippedItem {
+  smarthrCrewId: string;
+  empCode: string;
+  name: string;
+  reason: string;
 }

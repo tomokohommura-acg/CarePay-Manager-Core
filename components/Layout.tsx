@@ -5,8 +5,8 @@ import { BusinessType, Office, EvaluationPeriodMaster } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
-  activeTab: 'staff' | 'staff_list' | 'master' | 'history' | 'export';
-  setActiveTab: (tab: 'staff' | 'staff_list' | 'master' | 'history' | 'export') => void;
+  activeTab: 'staff' | 'staff_list' | 'master' | 'history' | 'export' | 'smarthr_settings';
+  setActiveTab: (tab: 'staff' | 'staff_list' | 'master' | 'history' | 'export' | 'smarthr_settings') => void;
   offices: Office[];
   selectedOfficeId: string;
   setSelectedOfficeId: (id: string) => void;
@@ -102,6 +102,10 @@ export const Layout: React.FC<LayoutProps> = ({
             </button>
             <button onClick={() => setActiveTab('export')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'export' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
               📥 CSV出力
+            </button>
+            <div className="border-t border-slate-800 my-4"></div>
+            <button onClick={() => setActiveTab('smarthr_settings')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'smarthr_settings' ? 'bg-slate-800 text-emerald-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
+              🔗 SmartHR連携
             </button>
           </nav>
         </div>
