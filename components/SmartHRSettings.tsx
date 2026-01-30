@@ -122,7 +122,7 @@ export const SmartHRSettings: React.FC<SmartHRSettingsProps> = ({
   };
 
   // 部署マッピング更新
-  const handleDepartmentMappingChange = (deptId: string, deptName: string, officeId: string) => {
+  const handleDepartmentMappingChange = (deptId: string, deptName: string, deptFullPath: string, officeId: string) => {
     setDepartmentMappings(prev => {
       const existing = prev.find(m => m.smarthrDepartmentId === deptId);
       if (officeId === '') {
@@ -131,13 +131,14 @@ export const SmartHRSettings: React.FC<SmartHRSettingsProps> = ({
       if (existing) {
         return prev.map(m =>
           m.smarthrDepartmentId === deptId
-            ? { ...m, officeId }
+            ? { ...m, officeId, smarthrDepartmentFullPath: deptFullPath }
             : m
         );
       }
       return [...prev, {
         smarthrDepartmentId: deptId,
         smarthrDepartmentName: deptName,
+        smarthrDepartmentFullPath: deptFullPath,
         officeId
       }];
     });
@@ -332,7 +333,7 @@ export const SmartHRSettings: React.FC<SmartHRSettingsProps> = ({
                     <span className="text-slate-400">→</span>
                     <select
                       value={mapping?.officeId || ''}
-                      onChange={(e) => handleDepartmentMappingChange(dept.id, dept.name, e.target.value)}
+                      onChange={(e) => handleDepartmentMappingChange(dept.id, dept.name, dept.full_path_name || dept.name, e.target.value)}
                       className="w-48 px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="">-- 未設定 --</option>

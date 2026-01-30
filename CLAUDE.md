@@ -150,12 +150,44 @@ interface Office {
 
 ### 資格の自動マッピング
 
-SmartHRのカスタム項目「資格①」〜「資格⑧」（プルダウン形式）は、選択された値の名前と資格マスタの名前を自動照合してマッピングする。手動マッピング設定は不要。
+SmartHRのカスタム項目「資格①」〜「資格⑧」（プルダウン形式）から資格を自動マッピング。
+
+**仕組み:**
+1. マスタ管理画面でSmartHRの資格選択肢をプルダウンで選択
+2. 選択すると`physical_name`（英語コード）が`smarthrCode`に保存される
+3. 同期時に従業員データの資格値と`smarthrCode`を照合してマッチング
+
+**重要なフィールド:**
+- `physical_name`: SmartHRカスタム項目の選択肢の英語コード（例: `certified_care_worker`）
+- `name`: 日本語名（例: `介護福祉士`）
 
 ```typescript
-// services/smarthrService.ts
-const qualificationFieldPattern = /^資格[①②③④⑤⑥⑦⑧]$/;
-// パターンに一致するカスタム項目の値を資格マスタ名と照合
+// services/smarthrService.ts - 資格フィールド判定
+const isQualificationNameField = (name: string): boolean => {
+  if (!name.startsWith('資格')) return false;
+  // 証憑、取得日、満了日、更新日などは除外
+  if (name.includes('証憑') || name.includes('取得日') || name.includes('満了日') || name.includes('更新')) return false;
+  return true;
+};
+
+// マッチング: smarthrCodeまたはnameで照合
+const matchingQual = businessTypeQualMasters.find(q =>
+  q.name === qualName ||
+  q.name === qualId ||
+  q.smarthrCode === qualId ||
+  q.smarthrCode === qualName
+);
+```
+
+**QualificationMaster型の拡張:**
+```typescript
+interface QualificationMaster {
+  id: string;
+  name: string;
+  allowance: number;
+  priority: number;
+  smarthrCode?: string;  // SmartHR連携用コード（physical_name）
+}
 ```
 
 ### 退職・雇用形態変更の処理

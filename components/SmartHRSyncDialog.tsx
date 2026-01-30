@@ -83,7 +83,46 @@ export const SmartHRSyncDialog: React.FC<SmartHRSyncDialogProps> = ({
 
     try {
       const service = new SmartHRService(config.subdomain, token);
-      const crews = await service.getAllCrews();
+
+      // 従業員データとカスタム項目テンプレートを並列取得
+      const [crews, customFieldTemplates] = await Promise.all([
+        service.getAllCrews(),
+        service.getCustomFieldTemplates()
+      ]);
+
+      // カスタム項目テンプレートから、コード→名前の変換マップを作成
+      const qualCodeToNameMap: Record<string, string> = {};
+      const qualFieldPattern = /^資格/;
+      const excludePattern = /証憑|取得日|満了日|更新/;
+
+      // デバッグ: テンプレートの選択肢の詳細を確認
+      const qualTemplates = customFieldTemplates.filter(t => qualFieldPattern.test(t.name) && !excludePattern.test(t.name));
+      console.log('[SmartHR] 資格テンプレート一覧:', qualTemplates.map(t => ({ name: t.name, type: t.type, hasElements: !!t.elements, elementsCount: t.elements?.length })));
+
+      // 最初のテンプレートの選択肢を詳細表示（全キーを確認）
+      if (qualTemplates.length > 0 && qualTemplates[0].elements && qualTemplates[0].elements[0]) {
+        const firstElement = qualTemplates[0].elements[0];
+        console.log('[SmartHR] 選択肢のキー一覧:', Object.keys(firstElement));
+        console.log('[SmartHR] 選択肢の全データ:', JSON.stringify(firstElement, null, 2));
+      }
+
+      for (const template of customFieldTemplates) {
+        if (qualFieldPattern.test(template.name) && !excludePattern.test(template.name)) {
+          // enum型でelements がある場合
+          if (template.elements && template.elements.length > 0) {
+            for (const element of template.elements) {
+              // physical_name（英語コード）から name（日本語名）への変換マップ
+              if (element.physical_name) {
+                qualCodeToNameMap[element.physical_name] = element.name;
+              }
+              qualCodeToNameMap[element.id] = element.name;
+              qualCodeToNameMap[element.name] = element.name;
+            }
+          }
+        }
+      }
+
+      console.log('[SmartHR] 資格コード→名前マップ:', qualCodeToNameMap);
 
       const qualificationMasters: Record<BusinessType, typeof masters[BusinessType]['qualifications']> = {
         [BusinessType.HOME_CARE]: masters[BusinessType.HOME_CARE].qualifications,
@@ -97,7 +136,8 @@ export const SmartHRSyncDialog: React.FC<SmartHRSyncDialogProps> = ({
         qualificationMappings,
         offices,
         qualificationMasters,
-        staffList
+        staffList,
+        qualCodeToNameMap
       );
 
       setPreview(previewData);

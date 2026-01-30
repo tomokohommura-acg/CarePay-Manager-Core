@@ -15,7 +15,8 @@ export interface QualificationMaster {
   id: string;
   name: string;
   allowance: number;
-  priority: number; 
+  priority: number;
+  smarthrCode?: string;  // SmartHR連携用コード（英語コード等）
 }
 
 export interface AttendanceConditionMaster {
@@ -106,6 +107,7 @@ export interface SmartHRConfig {
 export interface DepartmentOfficeMapping {
   smarthrDepartmentId: string;
   smarthrDepartmentName: string;
+  smarthrDepartmentFullPath?: string;  // フルパス名（同期時の照合用）
   officeId: string;
 }
 

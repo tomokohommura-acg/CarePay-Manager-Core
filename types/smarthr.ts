@@ -31,8 +31,8 @@ export interface SmartHRCrew {
   emp_code: string | null;
   last_name: string;
   first_name: string;
-  department: SmartHRDepartment | null;
-  employment_type: SmartHREmploymentType | null;
+  department: string | SmartHRDepartment | null;  // 文字列またはオブジェクト
+  employment_type: string | SmartHREmploymentType | null;  // 文字列またはオブジェクト
   custom_fields: SmartHRCustomField[];
   entered_at: string | null;
   resigned_at: string | null;

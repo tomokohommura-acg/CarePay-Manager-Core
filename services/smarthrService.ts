@@ -108,7 +108,7 @@ export class SmartHRService {
 
     while (true) {
       const response = await this.fetch<SmartHRCrew[]>(
-        `/crews?per_page=${perPage}&page=${page}`
+        `/crews?per_page=${perPage}&page=${page}&embed=department,employment_type,custom_fields`
       );
 
       if (!response || response.length === 0) {
@@ -210,17 +210,72 @@ export class SmartHRService {
 }
 
 // データ変換関数
+// 部署情報を正規化するヘルパー関数
+function normalizeDepartment(department: string | { id?: string; name?: string; full_path_name?: string } | null): { id: string; name: string } | null {
+  if (!department) return null;
+
+  if (typeof department === 'string') {
+    // 文字列の場合、フルパスをIDとして使用し、最後の部分を名前として使用
+    const parts = department.split('/');
+    const name = parts[parts.length - 1] || department;
+    return { id: department, name };
+  }
+
+  // オブジェクトの場合
+  if (department.id && department.name) {
+    return { id: department.id, name: department.name };
+  }
+
+  return null;
+}
+
+// 雇用形態情報を正規化するヘルパー関数
+function normalizeEmploymentType(empType: string | { id?: string; name?: string } | null): { id: string; name: string } | null {
+  if (!empType) return null;
+
+  if (typeof empType === 'string') {
+    return { id: empType, name: empType };
+  }
+
+  if (empType.id && empType.name) {
+    return { id: empType.id, name: empType.name };
+  }
+
+  return null;
+}
+
 export function transformCrewToStaff(
   crew: SmartHRCrew,
   departmentMappings: DepartmentOfficeMapping[],
   qualificationMappings: QualificationMapping[],
   offices: Office[],
-  qualificationMasters: Record<BusinessType, QualificationMaster[]>
+  qualificationMasters: Record<BusinessType, QualificationMaster[]>,
+  qualCodeToNameMap: Record<string, string> = {}
 ): { staff: Partial<Staff> | null; officeId: string | null; skipped: boolean; error?: string } {
+  // 部署情報を正規化
+  const normalizedDept = normalizeDepartment(crew.department);
+
+  // デバッグログ
+  console.log('[SmartHR Debug] crew data:', {
+    id: crew.id,
+    name: `${crew.last_name} ${crew.first_name}`,
+    rawDepartment: crew.department,
+    normalizedDept
+  });
+
   // 部署→事業所のマッピングを検索
   let officeId: string | null = null;
-  if (crew.department) {
-    const mapping = departmentMappings.find(m => m.smarthrDepartmentId === crew.department!.id);
+  if (normalizedDept) {
+    // 文字列の場合、normalizedDept.idにはフルパスが入っている
+    const deptFullPath = typeof crew.department === 'string' ? crew.department : null;
+
+    // ID、名前、フルパスでマッピングを検索
+    const mapping = departmentMappings.find(m =>
+      m.smarthrDepartmentId === normalizedDept.id ||
+      m.smarthrDepartmentName === normalizedDept.name ||
+      (deptFullPath && m.smarthrDepartmentFullPath === deptFullPath) ||
+      (deptFullPath && m.smarthrDepartmentName === deptFullPath)  // 後方互換性
+    );
     if (mapping) {
       officeId = mapping.officeId;
     }
@@ -231,8 +286,8 @@ export function transformCrewToStaff(
       staff: null,
       officeId: null,
       skipped: true,
-      error: crew.department
-        ? `部署「${crew.department.name}」のマッピングが未設定`
+      error: normalizedDept
+        ? `部署「${normalizedDept.name}」のマッピングが未設定`
         : '部署が未設定'
     };
   }
@@ -247,18 +302,79 @@ export function transformCrewToStaff(
   const qualifications: string[] = [];
   const businessTypeQualMasters = qualificationMasters[office.type] || [];
 
-  // 「資格①」〜「資格⑧」のパターン
-  const qualificationFieldPattern = /^資格[①②③④⑤⑥⑦⑧]$/;
+  // デバッグ: カスタム項目の構造を確認（全項目の名前と値を表示）
+  console.log('[SmartHR Debug] custom_fields:', {
+    name: `${crew.last_name} ${crew.first_name}`,
+    customFieldsCount: crew.custom_fields?.length || 0,
+    allFieldNames: crew.custom_fields?.map(cf => cf.template?.name || cf.name || '(no name)'),
+    fieldsWithValues: crew.custom_fields?.filter(cf => cf.value).map(cf => ({
+      fieldName: cf.template?.name || cf.name,
+      value: cf.value,
+      valueType: typeof cf.value
+    })),
+    qualMasters: businessTypeQualMasters.map(q => q.name)
+  });
 
-  for (const customField of crew.custom_fields) {
-    // 「資格①」〜「資格⑧」のカスタム項目を自動処理
-    if (qualificationFieldPattern.test(customField.template.name)) {
-      if (customField.value && typeof customField.value === 'object' && customField.value.name) {
-        // プルダウンの値（資格名）と資格マスタの名前を照合
-        const qualName = customField.value.name;
-        const matchingQual = businessTypeQualMasters.find(q => q.name === qualName);
+  // 資格名が入っているカスタム項目かどうかを判定
+  const isQualificationNameField = (name: string): boolean => {
+    if (!name.startsWith('資格')) return false;
+    // 証憑、取得日、満了日、更新日などは除外
+    if (name.includes('証憑') || name.includes('取得日') || name.includes('満了日') || name.includes('更新')) return false;
+    return true;
+  };
+
+  for (const customField of crew.custom_fields || []) {
+    const fieldName = customField.template?.name || customField.name || '';
+
+    // 「資格①」〜「資格⑧」など、資格名が入っているカスタム項目を自動処理
+    if (isQualificationNameField(fieldName)) {
+      // 値を取得（オブジェクトまたは文字列）
+      let qualName: string | null = null;
+      let qualId: string | null = null;
+
+      // デバッグ: 実際の値の構造を確認
+      console.log('[SmartHR] 資格フィールド詳細:', {
+        fieldName,
+        valueType: typeof customField.value,
+        valueIsObject: typeof customField.value === 'object',
+        rawValue: customField.value,
+        valueKeys: customField.value && typeof customField.value === 'object' ? Object.keys(customField.value) : null
+      });
+
+      if (customField.value && typeof customField.value === 'object') {
+        // オブジェクトの場合、nameとidの両方を取得
+        qualName = customField.value.name || null;
+        qualId = customField.value.id || null;
+      } else if (typeof customField.value === 'string' && customField.value) {
+        // 文字列の場合（これがIDまたは名前の可能性がある）
+        qualId = customField.value;
+        qualName = customField.value;
+      }
+
+      // デバッグ: 資格マッチング確認
+      console.log('[SmartHR Debug] 資格マッチング:', {
+        fieldName,
+        qualName,
+        qualId,
+        rawValue: customField.value,
+        masters: businessTypeQualMasters.map(q => q.name)
+      });
+
+      if (qualName || qualId) {
+        // マスタと照合（名前またはsmarthrCodeで照合）
+        const matchingQual = businessTypeQualMasters.find(q =>
+          q.name === qualName ||
+          q.name === qualId ||
+          q.smarthrCode === qualId ||
+          q.smarthrCode === qualName
+        );
+
         if (matchingQual && !qualifications.includes(matchingQual.id)) {
           qualifications.push(matchingQual.id);
+          console.log('[SmartHR] ✅ 資格マッチ成功:', matchingQual.name);
+        } else if (!matchingQual) {
+          // マッチ失敗時、コードを明確に表示
+          console.log(`[SmartHR] ❌ 資格マッチ失敗 - コード「${qualId || qualName}」をマスタのSmartHRコード欄に登録してください`);
         }
       }
       continue;
@@ -316,7 +432,8 @@ export function generateSyncPreview(
   qualificationMappings: QualificationMapping[],
   offices: Office[],
   qualificationMasters: Record<BusinessType, QualificationMaster[]>,
-  existingStaff: Staff[]
+  existingStaff: Staff[],
+  qualCodeToNameMap: Record<string, string> = {}
 ): SmartHRSyncPreview {
   const toAdd: SmartHRSyncItem[] = [];
   const toUpdate: SmartHRSyncItem[] = [];
@@ -338,9 +455,22 @@ export function generateSyncPreview(
       processedStaffIds.add(existing.id);
     }
 
-    // 雇用形態でフィルタ
+    // 雇用形態を正規化
+    const normalizedEmpType = normalizeEmploymentType(crew.employment_type);
+
+    // デバッグ: 雇用形態フィルタの確認
+    console.log('[SmartHR Debug] employment_type:', {
+      name: `${crew.last_name} ${crew.first_name}`,
+      rawEmpType: crew.employment_type,
+      normalizedEmpType,
+      filter: employmentTypeFilter
+    });
+
+    // 雇用形態でフィルタ（IDまたは名前で照合）
     const isEmploymentTypeFiltered = employmentTypeFilter.length > 0 &&
-      (!crew.employment_type || !employmentTypeFilter.includes(crew.employment_type.id));
+      (!normalizedEmpType || !employmentTypeFilter.some(filterId =>
+        filterId === normalizedEmpType.id || filterId === normalizedEmpType.name
+      ));
 
     if (isEmploymentTypeFiltered) {
       // 既存職員の雇用形態が変更された場合
@@ -351,8 +481,8 @@ export function generateSyncPreview(
           empCode: crew.emp_code || '',
           name: existing.name,
           changeType: 'employment_type_changed',
-          changeDetail: crew.employment_type
-            ? `雇用形態が「${crew.employment_type.name}」に変更されました`
+          changeDetail: normalizedEmpType
+            ? `雇用形態が「${normalizedEmpType.name}」に変更されました`
             : '雇用形態が未設定になりました'
         });
       } else {
@@ -360,8 +490,8 @@ export function generateSyncPreview(
           smarthrCrewId: crew.id,
           empCode: crew.emp_code || '',
           name: `${crew.last_name} ${crew.first_name}`.trim(),
-          reason: crew.employment_type
-            ? `雇用形態「${crew.employment_type.name}」は同期対象外`
+          reason: normalizedEmpType
+            ? `雇用形態「${normalizedEmpType.name}」は同期対象外`
             : '雇用形態が未設定'
         });
       }
@@ -396,7 +526,8 @@ export function generateSyncPreview(
       departmentMappings,
       qualificationMappings,
       offices,
-      qualificationMasters
+      qualificationMasters,
+      qualCodeToNameMap
     );
 
     if (result.skipped || !result.staff || !result.officeId) {
@@ -411,11 +542,14 @@ export function generateSyncPreview(
 
     const office = offices.find(o => o.id === result.officeId);
 
+    // 部署名を取得（文字列またはオブジェクト対応）
+    const normalizedDeptForItem = normalizeDepartment(crew.department);
+
     const syncItem: SmartHRSyncItem = {
       smarthrCrewId: crew.id,
       empCode: crew.emp_code || '',
       name: result.staff.name || '',
-      department: crew.department?.name || null,
+      department: normalizedDeptForItem?.name || null,
       officeId: result.officeId,
       officeName: office?.name || '',
       qualifications: result.staff.qualifications || [],

@@ -43,17 +43,46 @@ export const MasterManager: React.FC<MasterManagerProps> = ({
   const [newOfficeDeptId, setNewOfficeDeptId] = useState('');
   const [nameChanges, setNameChanges] = useState<{ officeId: string; officeName: string; newName: string }[]>([]);
   const [showNameChangeModal, setShowNameChangeModal] = useState(false);
+  // SmartHR資格選択肢（physical_nameを含む）
+  const [smarthrQualificationOptions, setSmarthrQualificationOptions] = useState<{ id: string; name: string; physicalName: string }[]>([]);
 
-  // SmartHR部署一覧を取得
+  // SmartHR部署一覧と資格選択肢を取得
   useEffect(() => {
-    const loadDepartments = async () => {
+    const loadSmartHRData = async () => {
       if (!smarthrConfig?.subdomain || !smarthrConfig?.accessToken) return;
 
       setIsLoadingDepts(true);
       try {
         const token = deobfuscateToken(smarthrConfig.accessToken);
         const service = new SmartHRService(smarthrConfig.subdomain, token);
-        const depts = await service.getDepartments();
+
+        // 部署とカスタム項目テンプレートを並列取得
+        const [depts, templates] = await Promise.all([
+          service.getDepartments(),
+          service.getCustomFieldTemplates()
+        ]);
+
+        // 資格関連のカスタム項目から選択肢を抽出（physical_nameを含む）
+        const qualOptions: { id: string; name: string; physicalName: string }[] = [];
+        const qualFieldPattern = /^資格/;
+        const excludePattern = /証憑|取得日|満了日|更新/;
+
+        for (const template of templates) {
+          // 資格フィールドで、enum型（プルダウン）のもの
+          if (qualFieldPattern.test(template.name) && !excludePattern.test(template.name) && template.type === 'enum' && template.elements) {
+            for (const element of template.elements) {
+              // 重複チェック（physical_nameで重複判定）
+              const physicalName = element.physical_name || element.id;
+              if (!qualOptions.some(opt => opt.physicalName === physicalName)) {
+                qualOptions.push({ id: element.id, name: element.name, physicalName });
+              }
+            }
+          }
+        }
+
+        setSmarthrQualificationOptions(qualOptions);
+        console.log('[SmartHR] 資格選択肢:', qualOptions);
+
         setSmarthrDepartments(depts);
 
         // 部署名の変更を検出
@@ -81,7 +110,7 @@ export const MasterManager: React.FC<MasterManagerProps> = ({
         setIsLoadingDepts(false);
       }
     };
-    loadDepartments();
+    loadSmartHRData();
   }, [smarthrConfig?.subdomain, smarthrConfig?.accessToken]);
 
   const isSmartHRConfigured = !!smarthrConfig?.subdomain && !!smarthrConfig?.accessToken;
@@ -536,7 +565,7 @@ export const MasterManager: React.FC<MasterManagerProps> = ({
               <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500">
                 <tr>
                   <th className="px-6 py-4 w-20">優先度</th>
-                  <th className="px-6 py-4">資格名</th>
+                  <th className="px-6 py-4">SmartHR資格</th>
                   <th className="px-6 py-4 text-right">手当額</th>
                   <th className="w-16"></th>
                 </tr>
@@ -548,7 +577,33 @@ export const MasterManager: React.FC<MasterManagerProps> = ({
                       <input type="number" value={q.priority} onChange={(e) => handleUpdateQual(q.id, 'priority', Number(e.target.value))} className="w-12 text-center bg-slate-50 border border-slate-100 rounded p-1 font-bold text-indigo-600" />
                     </td>
                     <td className="px-6 py-4">
-                      <input type="text" value={q.name} onChange={(e) => handleUpdateQual(q.id, 'name', e.target.value)} className="w-full bg-transparent outline-none font-medium p-1 focus:ring-1 focus:ring-indigo-100 rounded" />
+                      {smarthrQualificationOptions.length > 0 ? (
+                        <select
+                          value={q.smarthrCode || ''}
+                          onChange={(e) => {
+                            const selectedOption = smarthrQualificationOptions.find(opt => opt.physicalName === e.target.value);
+                            // physicalNameをsmarthrCodeに、nameをnameに保存
+                            onUpdate({
+                              ...data,
+                              qualifications: data.qualifications.map(qual =>
+                                qual.id === q.id
+                                  ? { ...qual, smarthrCode: e.target.value, name: selectedOption?.name || qual.name }
+                                  : qual
+                              )
+                            });
+                          }}
+                          className="w-full bg-transparent outline-none text-sm p-1 focus:ring-1 focus:ring-indigo-100 rounded border border-slate-200"
+                        >
+                          <option value="">-- 資格を選択 --</option>
+                          {smarthrQualificationOptions.map(opt => (
+                            <option key={opt.physicalName} value={opt.physicalName}>
+                              {opt.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-slate-400">SmartHR連携設定が必要</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="text-slate-400">¥</span>
