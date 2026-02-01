@@ -13,7 +13,8 @@ import {
   SmartHRSkippedItem,
   SmartHRStatusChangeItem,
   QualificationMaster,
-  BusinessType
+  BusinessType,
+  BaseSalaryRevision
 } from '../types';
 
 // トークン難読化用（Base64 + XOR）
@@ -595,11 +596,19 @@ export function executeSyncItems(
       }
     } else if (!isUpdate) {
       // 新規職員の追加
+      const defaultBaseSalary = 200000;
       const newStaff: Staff = {
         id: crypto.randomUUID(),
         officeId: item.officeId,
         name: item.name,
-        baseSalary: 200000, // デフォルト値
+        baseSalary: defaultBaseSalary,
+        baseSalaryHistory: [{
+          id: crypto.randomUUID(),
+          effectiveMonth: item.enteredAt?.substring(0, 7) || new Date().toISOString().substring(0, 7),
+          amount: defaultBaseSalary,
+          memo: 'SmartHR同期時に自動作成',
+          createdAt: new Date().toISOString()
+        }],
         qualifications: item.qualifications,
         enteredAt: item.enteredAt,
         resignedAt: item.resignedAt,

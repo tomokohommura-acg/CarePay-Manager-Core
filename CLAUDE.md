@@ -271,3 +271,257 @@ const unconfiguredCount = allOfficeStaff.filter(s => s.baseSalary === DEFAULT_BA
 - カスタム項目の閲覧権限をトークンに付与する必要あり
 - CORS制約によりブラウザから直接APIを叩く（将来的にCloud Functions経由を検討）
 - ページネーション対応: 部署・雇用形態・カスタム項目テンプレートは100件/ページで全件取得
+
+---
+
+## GWS認証 + 権限管理（2026-02-01 実装）
+
+### 概要
+
+Google Workspaceアカウントでログインし、3段階の権限（管理者/評価者/閲覧者）でアクセス制御を行う。
+
+### 認証方式
+
+Firebase Authentication（Googleプロバイダー）を使用。ホワイトリスト方式で、事前登録されたユーザーのみログイン可能。
+
+### 権限レベル
+
+| 権限 | マスタ管理 | 評価入力 | 閲覧 | SmartHR連携 | ユーザー管理 |
+|-----|----------|---------|-----|------------|------------|
+| admin（管理者） | ○ | ○ | ○ | ○ | ○ |
+| evaluator（評価者） | × | ○ | ○ | × | × |
+| viewer（閲覧者） | × | × | ○ | × | × |
+
+### データ構造
+
+```typescript
+// types.ts
+type UserRole = 'admin' | 'evaluator' | 'viewer';
+
+interface AppUser {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+  role: UserRole;
+  createdAt: string;
+}
+```
+
+### 関連ファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `firebase.ts` | Firebase初期化（Auth + Firestore） |
+| `services/firestoreService.ts` | Firestore CRUD操作 |
+| `contexts/AuthContext.tsx` | 認証状態管理、ホワイトリスト検証 |
+| `hooks/useAuth.ts` | 認証フック（re-export） |
+| `hooks/useFirestoreData.ts` | Firestoreデータ取得・保存フック |
+| `components/LoginPage.tsx` | Googleログイン画面 |
+| `components/UserManagement.tsx` | ユーザー管理画面（管理者用） |
+
+### Firestoreコレクション
+
+| コレクション | 内容 |
+|-------------|------|
+| `users` | ユーザー・権限情報 |
+| `offices` | 事業所情報 |
+| `staff` | 職員名簿 |
+| `masters` | マスタデータ（資格、勤怠条件、評価項目、期間） |
+| `evaluationRecords` | 評価レコード |
+| `inputs` | 評価入力データ |
+| `history` | 評価履歴 |
+| `changeLog` | 変更ログ |
+| `config` | SmartHR設定、マッピング、選択中の期間 |
+
+### 初期管理者の設定
+
+環境変数`VITE_INITIAL_ADMIN_EMAIL`で指定したメールアドレスが最初にログインすると、自動的に管理者として登録される。
+
+### LocalStorage → Firestore移行
+
+初回ログイン時、LocalStorageにデータがあればFirestoreに自動移行。移行後は`carepay_v2_state_migrated`フラグが立つ。
+
+---
+
+## 基本給改定履歴管理（2026-02-01 実装）
+
+### 概要
+
+「○月から基本給変更」という形で、職員ごとに基本給の改定履歴を管理。評価期間に応じて適切な基本給が自動適用される。
+
+### データ構造
+
+```typescript
+// types.ts
+interface BaseSalaryRevision {
+  id: string;              // UUID
+  effectiveMonth: string;  // "YYYY-MM" 形式（例："2024-04"）
+  amount: number;          // 基本給額
+  memo?: string;           // 変更理由メモ（任意）
+  createdAt: string;       // 作成日時
+}
+
+// Staff型の拡張
+interface Staff {
+  // ...既存フィールド
+  baseSalary: number;                      // 最新の基本給（後方互換用）
+  baseSalaryHistory?: BaseSalaryRevision[]; // 改定履歴配列
+}
+```
+
+### 基本給取得ロジック（`utils/salaryUtils.ts`）
+
+```typescript
+// 評価期間に適用される基本給を取得
+function getEffectiveBaseSalary(staff: Staff, evaluationStart: string): number
+// effectiveMonth <= evaluationStart の中で最新のものを使用
+// 同一月に複数の改定がある場合、createdAtが最新のものが有効
+```
+
+### 関連ファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `utils/salaryUtils.ts` | 基本給取得・操作ヘルパー関数 |
+| `components/BaseSalaryHistoryEditor.tsx` | 給与管理モーダル |
+| `components/StaffManager.tsx` | 給与管理ボタン、社員番号列 |
+
+### 既存データ移行
+
+baseSalaryHistoryがない職員には、初期履歴が自動作成される:
+```typescript
+{
+  effectiveMonth: staff.enteredAt || "2000-01",
+  amount: staff.baseSalary,
+  memo: "初期移行データ"
+}
+```
+
+---
+
+## 評価履歴の変更ログ（2026-02-01 実装）
+
+### 概要
+
+評価を保存した際に、前回との差分を「職員〇〇 項目名 旧値→新値」形式で記録。
+
+### データ構造
+
+```typescript
+// types.ts
+interface ChangeLogEntry {
+  id: string;
+  timestamp: string;
+  userId: string;           // 変更したユーザー
+  userName: string;
+  periodId: string;
+  periodName: string;
+  changes: ChangeDetail[];
+}
+
+interface ChangeDetail {
+  staffId: string;
+  staffName: string;
+  field: string;            // "attendance_xxx" | "performance_xxx"
+  fieldName: string;        // "欠勤" | "訪問件数" など
+  oldValue: number | string;
+  newValue: number | string;
+}
+```
+
+### 関連ファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `components/HistoryView.tsx` | 評価履歴タブ + 変更ログタブ |
+| `App.tsx` | 変更ログ生成ロジック（`generateChangeLog`関数） |
+
+---
+
+## 職員分析BI（2026-02-01 実装）
+
+### 概要
+
+職員ごとの給与・評価の推移を可視化する分析画面。
+
+### 表示内容
+
+1. **職員選択**: 事業所フィルター → 職員プルダウン
+2. **基本給の推移**: 改定履歴を折れ線グラフで表示
+3. **最終支給額の推移**: 期間ごとの支給額を折れ線グラフで表示
+4. **給与内訳の推移**: 基本給・資格手当・控除・加算を積み上げ棒グラフで表示
+5. **評価項目の推移**: 勤怠控除・業績評価をテーブルで表示
+6. **期間別サマリー**: 全項目をテーブルで一覧表示
+
+### 使用ライブラリ
+
+- `chart.js` - グラフ描画ライブラリ
+- `react-chartjs-2` - Reactラッパー
+
+### 関連ファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `components/StaffAnalytics.tsx` | 職員分析BIメイン画面 |
+| `components/SalaryChart.tsx` | 基本給・支給額・内訳グラフ |
+| `components/EvaluationTable.tsx` | 評価項目推移テーブル |
+
+---
+
+## 環境変数
+
+`.env.local`に以下を設定:
+
+```bash
+# Firebase設定
+VITE_FIREBASE_API_KEY=your-api-key
+VITE_FIREBASE_AUTH_DOMAIN=visit-care-salary.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=visit-care-salary
+VITE_FIREBASE_STORAGE_BUCKET=visit-care-salary.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+VITE_FIREBASE_APP_ID=your-app-id
+
+# 初期管理者メールアドレス
+VITE_INITIAL_ADMIN_EMAIL=admin@example.com
+
+# Gemini API（AI分析用）
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+---
+
+## TODO: 今後の対応事項
+
+### Firebase Console設定（必須・未完了）
+
+1. **Firebase Console**（https://console.firebase.google.com）で`visit-care-salary`プロジェクトを開く
+2. **Authentication**を有効化
+   - 「Sign-in method」→「Google」を有効化
+   - 承認済みドメインに`localhost`と`visit-care-salary.web.app`を追加
+3. **Firestore Database**を作成
+   - 本番モードで開始
+   - リージョン: `asia-northeast1`（東京）
+4. **Firestoreセキュリティルール**を設定（認証済みユーザーのみアクセス可能に）
+
+### 環境変数設定（必須・未完了）
+
+1. `.env.local`ファイルを作成（`.env.local.example`を参考に）
+2. Firebase Consoleから設定値をコピー
+3. `VITE_INITIAL_ADMIN_EMAIL`に初期管理者のメールを設定
+
+### 動作確認（必須・未完了）
+
+1. `npm run dev`で開発サーバー起動
+2. Googleログインが動作することを確認
+3. LocalStorageからFirestoreへのデータ移行を確認
+4. 権限に応じたタブ表示を確認
+
+### 将来的な改善（任意）
+
+- [ ] Firestoreセキュリティルールの詳細設定
+- [ ] Cloud Functionsを使ったSmartHR API呼び出し（CORS回避）
+- [ ] データエクスポート機能のCSV出力実装
+- [ ] 評価期間に応じた基本給自動適用（`getEffectiveBaseSalary`の統合）
+- [ ] プッシュ通知（評価期間終了リマインダーなど）
+- [ ] バックアップ・リストア機能

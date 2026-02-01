@@ -1,6 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { Layout } from './components/Layout';
+import { Layout, TabType } from './components/Layout';
+import { LoginPage } from './components/LoginPage';
 import { MasterManager } from './components/MasterManager';
 import { StaffInput } from './components/StaffInput';
 import { StaffManager } from './components/StaffManager';
@@ -8,93 +8,108 @@ import { HistoryView } from './components/HistoryView';
 import { StaffDashboard } from './components/StaffDashboard';
 import { SmartHRSettings } from './components/SmartHRSettings';
 import { SmartHRSyncDialog } from './components/SmartHRSyncDialog';
-import { BusinessType, MasterData, Staff, StaffUpdateData, Office, HistoryEntry, EvaluationRecord, EvaluationPeriodMaster, SmartHRConfig, DepartmentOfficeMapping, QualificationMapping } from './types';
-import { DEFAULT_MASTERS, INITIAL_STAFF, INITIAL_OFFICES } from './constants';
+import { UserManagement } from './components/UserManagement';
+import { StaffAnalytics } from './components/StaffAnalytics';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { useFirestoreData } from './hooks/useFirestoreData';
+import { BusinessType, MasterData, StaffUpdateData, HistoryEntry, EvaluationRecord, ChangeLogEntry, ChangeDetail } from './types';
 
-const STORAGE_KEY = 'carepay_v2_state';
+const AppContent: React.FC = () => {
+  const { appUser, loading: authLoading, logout, isAdmin, isEvaluator, canEdit } = useAuth();
+  const isAuthenticated = !!appUser;
 
-const DEFAULT_SMARTHR_CONFIG: SmartHRConfig = {
-  subdomain: '',
-  accessToken: '',
-  employmentTypeFilter: [],
-  lastSyncedAt: null,
-  storeToken: true
-};
+  const {
+    offices,
+    staffList,
+    masters,
+    evaluationRecords,
+    inputs,
+    history,
+    changeLogs,
+    smarthrConfig,
+    departmentMappings,
+    qualificationMappings,
+    selectedPeriodId,
+    loading: dataLoading,
+    setOffices,
+    setStaffList,
+    setMasters,
+    setEvaluationRecords,
+    setInputs,
+    setHistory,
+    setSmarthrConfig,
+    setDepartmentMappings,
+    setQualificationMappings,
+    setSelectedPeriodId,
+    handleInputChange,
+    handleAddHistoryEntry,
+    handleAddChangeLog
+  } = useFirestoreData(isAuthenticated);
 
-const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'staff' | 'staff_list' | 'master' | 'history' | 'export' | 'smarthr_settings'>('staff');
-  const [offices, setOffices] = useState<Office[]>(INITIAL_OFFICES);
-  const [selectedOfficeId, setSelectedOfficeId] = useState<string>(offices[0].id);
-  const [masters, setMasters] = useState<Record<BusinessType, MasterData>>(DEFAULT_MASTERS);
-  const [staffList, setStaffList] = useState<Staff[]>(INITIAL_STAFF);
-  
-  // 入力データと評価用スナップショット (キーを "periodId_staffId" に拡張して管理)
-  const [inputs, setInputs] = useState<Record<string, StaffUpdateData>>({});
-  const [evaluationRecords, setEvaluationRecords] = useState<Record<string, EvaluationRecord>>({});
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-
-  // 現在選択されている評価期間ID
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
-
-  // SmartHR連携設定
-  const [smarthrConfig, setSmarthrConfig] = useState<SmartHRConfig>(DEFAULT_SMARTHR_CONFIG);
-  const [departmentMappings, setDepartmentMappings] = useState<DepartmentOfficeMapping[]>([]);
-  const [qualificationMappings, setQualificationMappings] = useState<QualificationMapping[]>([]);
+  const [activeTab, setActiveTab] = useState<TabType>('staff');
+  const [selectedOfficeId, setSelectedOfficeId] = useState<string>('');
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [showUnconfiguredOnly, setShowUnconfiguredOnly] = useState(false);
-
-  // ダッシュボード表示用
   const [viewingStaffId, setViewingStaffId] = useState<string | null>(null);
 
-  // 職員名簿へ遷移（未設定フィルター付き）
-  const handleNavigateToStaffList = (showUnconfigured: boolean) => {
-    setActiveTab('staff_list');
-    setShowUnconfiguredOnly(showUnconfigured);
-  };
+  // 初回ロード時: 最初の事業所と期間を選択
+  useEffect(() => {
+    if (offices.length > 0 && !selectedOfficeId) {
+      setSelectedOfficeId(offices[0].id);
+    }
+  }, [offices, selectedOfficeId]);
 
-  // 初回ロード時: 選択中の事業所の最初の期間をセット
   useEffect(() => {
     const selectedOffice = offices.find(o => o.id === selectedOfficeId) || offices[0];
-    const currentMaster = masters[selectedOffice.type];
-    if (currentMaster.periods.length > 0 && !selectedPeriodId) {
-      setSelectedPeriodId(currentMaster.periods[0].id);
-    }
-  }, [selectedOfficeId, masters, offices, selectedPeriodId]);
-
-  // LocalStorageから復元
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.masters) setMasters(parsed.masters);
-        if (parsed.staffList) setStaffList(parsed.staffList);
-        if (parsed.inputs) setInputs(parsed.inputs);
-        if (parsed.history) setHistory(parsed.history);
-        if (parsed.evaluationRecords) setEvaluationRecords(parsed.evaluationRecords);
-        if (parsed.offices) setOffices(parsed.offices);
-        if (parsed.selectedPeriodId) setSelectedPeriodId(parsed.selectedPeriodId);
-        if (parsed.smarthrConfig) setSmarthrConfig(parsed.smarthrConfig);
-        if (parsed.departmentMappings) setDepartmentMappings(parsed.departmentMappings);
-        if (parsed.qualificationMappings) setQualificationMappings(parsed.qualificationMappings);
-      } catch (e) {
-        console.error("Failed to load state", e);
+    if (selectedOffice) {
+      const currentMaster = masters[selectedOffice.type];
+      if (currentMaster?.periods?.length > 0 && !selectedPeriodId) {
+        setSelectedPeriodId(currentMaster.periods[0].id);
       }
     }
-  }, []);
+  }, [selectedOfficeId, masters, offices, selectedPeriodId, setSelectedPeriodId]);
 
-  // 状態が変わるたびに保存
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      masters, staffList, inputs, history, evaluationRecords, offices, selectedPeriodId,
-      smarthrConfig, departmentMappings, qualificationMappings
-    }));
-  }, [masters, staffList, inputs, history, evaluationRecords, offices, selectedPeriodId, smarthrConfig, departmentMappings, qualificationMappings]);
+  // 認証ローディング中
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-500">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 未認証時はログイン画面
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  // データローディング中
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-500">データを読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
 
   const selectedOffice = offices.find(o => o.id === selectedOfficeId) || offices[0];
+  if (!selectedOffice) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <p className="text-slate-500">事業所データがありません</p>
+      </div>
+    );
+  }
+
   const businessType = selectedOffice.type;
   const currentMaster = masters[businessType];
-  const activePeriod = currentMaster.periods.find(p => p.id === selectedPeriodId) || currentMaster.periods[0];
+  const activePeriod = currentMaster?.periods?.find(p => p.id === selectedPeriodId) || currentMaster?.periods?.[0];
 
   // 現在の事業所 + 選択中の期間 に所属するスナップショットを抽出
   const recordKeyPrefix = `${selectedPeriodId}_`;
@@ -103,10 +118,8 @@ const App: React.FC = () => {
   const currentEvaluationRecords = (Object.values(evaluationRecords) as EvaluationRecord[])
     .filter(r => {
       const isCorrectOffice = r.officeId === selectedOfficeId;
-      // evaluationRecordsのキー自体に期間情報が含まれている前提
       const isCorrectPeriod = Object.keys(evaluationRecords).find(key => evaluationRecords[key] === r)?.startsWith(recordKeyPrefix);
 
-      // 評価期間開始日より前に退職した職員を除外
       const staff = staffList.find(s => s.id === r.staffId);
       if (staff?.resignedAt && evaluationStartDate) {
         const resignedDate = new Date(staff.resignedAt);
@@ -125,7 +138,6 @@ const App: React.FC = () => {
 
     const evaluationStartDate = activePeriod.evaluationStart ? new Date(activePeriod.evaluationStart + '-01') : null;
 
-    // 評価期間開始日より前に退職した職員を除外
     const officeStaff = staffList.filter(s => {
       if (s.officeId !== selectedOfficeId) return false;
       if (s.resignedAt && evaluationStartDate) {
@@ -164,9 +176,89 @@ const App: React.FC = () => {
     setMasters(prev => ({ ...prev, [businessType]: updated }));
   };
 
-  const handleInputChange = (data: StaffUpdateData) => {
-    const key = `${selectedPeriodId}_${data.staffId}`;
-    setInputs(prev => ({ ...prev, [key]: data }));
+  const handleLocalInputChange = (data: StaffUpdateData) => {
+    handleInputChange(data);
+  };
+
+  // 変更ログを生成するヘルパー関数
+  const generateChangeLog = (
+    previousInputs: Record<string, StaffUpdateData>,
+    currentInputs: Record<string, StaffUpdateData>
+  ): ChangeDetail[] => {
+    const changes: ChangeDetail[] = [];
+
+    // 現在の期間のキーのみをチェック
+    const relevantKeys = Object.keys(currentInputs).filter(key => key.startsWith(`${selectedPeriodId}_`));
+
+    for (const key of relevantKeys) {
+      const current = currentInputs[key];
+      const previous = previousInputs[key];
+      const staffId = current.staffId;
+      const staff = staffList.find(s => s.id === staffId);
+      const staffName = staff?.name || '不明';
+
+      if (!previous) {
+        // 新規追加の場合は全項目を記録
+        for (const [condId, value] of Object.entries(current.attendanceInputs)) {
+          if (value !== 0) {
+            const condition = currentMaster?.attendanceConditions?.find(c => c.id === condId);
+            changes.push({
+              staffId,
+              staffName,
+              field: `attendance_${condId}`,
+              fieldName: condition?.name || condId,
+              oldValue: 0,
+              newValue: value
+            });
+          }
+        }
+        for (const [perfId, value] of Object.entries(current.performanceInputs)) {
+          if (value !== 0) {
+            const perf = currentMaster?.performanceEvaluations?.find(p => p.id === perfId);
+            changes.push({
+              staffId,
+              staffName,
+              field: `performance_${perfId}`,
+              fieldName: perf?.name || perfId,
+              oldValue: 0,
+              newValue: value
+            });
+          }
+        }
+      } else {
+        // 既存データとの差分をチェック
+        for (const [condId, value] of Object.entries(current.attendanceInputs)) {
+          const oldValue = previous.attendanceInputs[condId] || 0;
+          if (oldValue !== value) {
+            const condition = currentMaster?.attendanceConditions?.find(c => c.id === condId);
+            changes.push({
+              staffId,
+              staffName,
+              field: `attendance_${condId}`,
+              fieldName: condition?.name || condId,
+              oldValue,
+              newValue: value
+            });
+          }
+        }
+        for (const [perfId, value] of Object.entries(current.performanceInputs)) {
+          const oldValue = previous.performanceInputs[perfId] || 0;
+          if (oldValue !== value) {
+            const perf = currentMaster?.performanceEvaluations?.find(p => p.id === perfId);
+            changes.push({
+              staffId,
+              staffName,
+              field: `performance_${perfId}`,
+              fieldName: perf?.name || perfId,
+              oldValue,
+              newValue: value
+            });
+          }
+        }
+      }
+    }
+
+    return changes;
   };
 
   const handleSaveToHistory = () => {
@@ -185,21 +277,49 @@ const App: React.FC = () => {
       inputs: JSON.parse(JSON.stringify(inputs)),
     };
 
-    setHistory(prev => [newEntry, ...prev]);
+    handleAddHistoryEntry(newEntry);
+
+    // 変更ログを作成
+    const lastHistoryForPeriod = history.find(h => h.period.id === activePeriod.id && h.officeId === selectedOfficeId);
+    const previousInputs = lastHistoryForPeriod?.inputs || {};
+    const changes = generateChangeLog(previousInputs, inputs);
+
+    if (changes.length > 0 && appUser) {
+      const changeLogEntry: ChangeLogEntry = {
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        userId: appUser.uid,
+        userName: appUser.displayName,
+        periodId: activePeriod.id,
+        periodName: activePeriod.name,
+        changes
+      };
+      handleAddChangeLog(changeLogEntry);
+    }
+
     alert("評価を履歴に保存しました。");
   };
 
+  const handleNavigateToStaffList = (showUnconfigured: boolean) => {
+    setActiveTab('staff_list');
+    setShowUnconfiguredOnly(showUnconfigured);
+  };
+
   return (
-    <Layout 
-      activeTab={activeTab} 
-      setActiveTab={setActiveTab} 
+    <Layout
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
       offices={offices}
       selectedOfficeId={selectedOfficeId}
       setSelectedOfficeId={setSelectedOfficeId}
       periodConfig={activePeriod ? { evaluationStart: activePeriod.evaluationStart, evaluationEnd: activePeriod.evaluationEnd, paymentStart: activePeriod.paymentStart, paymentEnd: activePeriod.paymentEnd } : { evaluationStart: '', evaluationEnd: '', paymentStart: '', paymentEnd: '' }}
+      user={appUser}
+      onLogout={logout}
+      isAdmin={isAdmin}
+      canEdit={canEdit}
     >
       {viewingStaffId && dashboardRecord && dashboardInput && (
-        <StaffDashboard 
+        <StaffDashboard
           record={dashboardRecord}
           master={currentMaster}
           input={dashboardInput}
@@ -209,16 +329,17 @@ const App: React.FC = () => {
       )}
 
       {activeTab === 'staff' && (
-        <StaffInput 
-          records={currentEvaluationRecords} 
-          master={currentMaster} 
+        <StaffInput
+          records={currentEvaluationRecords}
+          master={currentMaster}
           inputs={inputs}
           selectedPeriodId={selectedPeriodId}
           onPeriodChange={setSelectedPeriodId}
-          onInputChange={handleInputChange}
+          onInputChange={handleLocalInputChange}
           onSaveHistory={handleSaveToHistory}
           onSync={syncStaffFromMaster}
           onOpenDashboard={(id) => setViewingStaffId(id)}
+          canEdit={canEdit}
         />
       )}
 
@@ -232,10 +353,20 @@ const App: React.FC = () => {
           smarthrConfigured={!!smarthrConfig.subdomain && !!smarthrConfig.accessToken}
           showUnconfiguredOnly={showUnconfiguredOnly}
           setShowUnconfiguredOnly={setShowUnconfiguredOnly}
+          canEdit={canEdit}
         />
       )}
 
-      {activeTab === 'smarthr_settings' && (
+      {activeTab === 'analytics' && (
+        <StaffAnalytics
+          staffList={staffList}
+          offices={offices}
+          masters={masters}
+          history={history}
+        />
+      )}
+
+      {activeTab === 'smarthr_settings' && isAdmin && (
         <SmartHRSettings
           config={smarthrConfig}
           setConfig={setSmarthrConfig}
@@ -261,8 +392,8 @@ const App: React.FC = () => {
         setStaffList={setStaffList}
         onNavigateToStaffList={handleNavigateToStaffList}
       />
-      
-      {activeTab === 'master' && (
+
+      {activeTab === 'master' && isAdmin && (
         <MasterManager
           data={currentMaster}
           onUpdate={handleUpdateMaster}
@@ -279,7 +410,15 @@ const App: React.FC = () => {
       )}
 
       {activeTab === 'history' && (
-        <HistoryView history={history} setHistory={setHistory} />
+        <HistoryView
+          history={history}
+          setHistory={setHistory}
+          changeLogs={changeLogs}
+        />
+      )}
+
+      {activeTab === 'user_management' && isAdmin && appUser && (
+        <UserManagement currentUser={appUser} />
       )}
 
       {activeTab === 'export' && (
@@ -287,7 +426,7 @@ const App: React.FC = () => {
           <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">📥</div>
           <h3 className="text-2xl font-bold text-slate-800 mb-2">CSVエクスポート</h3>
           <p className="text-slate-500 mb-8 leading-relaxed">
-            <span className="font-bold text-indigo-600">{selectedOffice.name}</span><br/>
+            <span className="font-bold text-indigo-600">{selectedOffice.name}</span><br />
             期間: <span className="font-bold">{activePeriod?.name}</span> の評価結果を出力します。
           </p>
           <button onClick={() => alert("エクスポート機能は現在、期間別フィルタリングを適用中です")} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 shadow-lg">
@@ -296,6 +435,14 @@ const App: React.FC = () => {
         </div>
       )}
     </Layout>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 

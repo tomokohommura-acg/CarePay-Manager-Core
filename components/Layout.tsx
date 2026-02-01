@@ -1,32 +1,41 @@
 
 import React, { useMemo, useState } from 'react';
-// Changed PeriodConfig to EvaluationPeriodMaster to fix the import error.
-import { BusinessType, Office, EvaluationPeriodMaster } from '../types';
+import { BusinessType, Office, AppUser } from '../types';
+
+export type TabType = 'staff' | 'staff_list' | 'master' | 'history' | 'export' | 'smarthr_settings' | 'analytics' | 'user_management';
 
 interface LayoutProps {
   children: React.ReactNode;
-  activeTab: 'staff' | 'staff_list' | 'master' | 'history' | 'export' | 'smarthr_settings';
-  setActiveTab: (tab: 'staff' | 'staff_list' | 'master' | 'history' | 'export' | 'smarthr_settings') => void;
+  activeTab: TabType;
+  setActiveTab: (tab: TabType) => void;
   offices: Office[];
   selectedOfficeId: string;
   setSelectedOfficeId: (id: string) => void;
-  // Updated periodConfig type to use EvaluationPeriodMaster
   periodConfig: {
     evaluationStart: string;
     evaluationEnd: string;
     paymentStart: string;
     paymentEnd: string;
   };
+  // 認証関連
+  user?: AppUser | null;
+  onLogout?: () => void;
+  isAdmin?: boolean;
+  canEdit?: boolean;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ 
-  children, 
-  activeTab, 
-  setActiveTab, 
-  offices, 
-  selectedOfficeId, 
+export const Layout: React.FC<LayoutProps> = ({
+  children,
+  activeTab,
+  setActiveTab,
+  offices,
+  selectedOfficeId,
   setSelectedOfficeId,
-  periodConfig
+  periodConfig,
+  user,
+  onLogout,
+  isAdmin = false,
+  canEdit = false
 }) => {
   const selectedOffice = offices.find(o => o.id === selectedOfficeId);
   const [filterType, setFilterType] = useState<BusinessType>(selectedOffice?.type || BusinessType.HOME_CARE);
@@ -94,19 +103,31 @@ export const Layout: React.FC<LayoutProps> = ({
             <button onClick={() => setActiveTab('staff_list')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'staff_list' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
               👥 職員名簿
             </button>
+            <button onClick={() => setActiveTab('analytics')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'analytics' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
+              📈 職員分析
+            </button>
             <button onClick={() => setActiveTab('history')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
               📋 評価履歴
             </button>
-            <button onClick={() => setActiveTab('master')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'master' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
-              ⚙️ マスタ管理
-            </button>
+            {isAdmin && (
+              <button onClick={() => setActiveTab('master')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'master' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
+                ⚙️ マスタ管理
+              </button>
+            )}
             <button onClick={() => setActiveTab('export')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'export' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
               📥 CSV出力
             </button>
-            <div className="border-t border-slate-800 my-4"></div>
-            <button onClick={() => setActiveTab('smarthr_settings')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'smarthr_settings' ? 'bg-slate-800 text-emerald-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
-              🔗 SmartHR連携
-            </button>
+            {isAdmin && (
+              <>
+                <div className="border-t border-slate-800 my-4"></div>
+                <button onClick={() => setActiveTab('smarthr_settings')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'smarthr_settings' ? 'bg-slate-800 text-emerald-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
+                  🔗 SmartHR連携
+                </button>
+                <button onClick={() => setActiveTab('user_management')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'user_management' ? 'bg-slate-800 text-emerald-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
+                  👥 ユーザー管理
+                </button>
+              </>
+            )}
           </nav>
         </div>
       </aside>
@@ -126,7 +147,38 @@ export const Layout: React.FC<LayoutProps> = ({
               <span className="text-[10px] text-slate-400 block font-bold uppercase">給与反映期間</span>
               <span className="text-sm font-bold text-indigo-600">{periodConfig.paymentStart} 〜 {periodConfig.paymentEnd}</span>
             </div>
-            <div className="h-11 w-11 rounded-2xl bg-slate-100 flex items-center justify-center border border-slate-200">🏢</div>
+            {user && (
+              <div className="flex items-center gap-3 pl-6 border-l border-slate-200">
+                <div className="text-right">
+                  <span className="text-sm font-medium text-slate-700 block">{user.displayName}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    user.role === 'admin' ? 'bg-rose-100 text-rose-600' :
+                    user.role === 'evaluator' ? 'bg-amber-100 text-amber-600' :
+                    'bg-slate-100 text-slate-600'
+                  }`}>
+                    {user.role === 'admin' ? '管理者' : user.role === 'evaluator' ? '評価者' : '閲覧者'}
+                  </span>
+                </div>
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="" className="h-10 w-10 rounded-full border-2 border-slate-200" />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                    {user.displayName?.[0] || '?'}
+                  </div>
+                )}
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    className="text-slate-400 hover:text-rose-500 transition-colors p-2"
+                    title="ログアウト"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </header>
 

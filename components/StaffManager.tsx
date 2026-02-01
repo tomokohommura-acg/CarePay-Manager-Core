@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Staff, MasterData } from '../types';
+import { BaseSalaryHistoryEditor } from './BaseSalaryHistoryEditor';
 
 const DEFAULT_BASE_SALARY = 200000;
 
@@ -13,6 +14,7 @@ interface StaffManagerProps {
   smarthrConfigured?: boolean;
   showUnconfiguredOnly?: boolean;
   setShowUnconfiguredOnly?: (value: boolean) => void;
+  canEdit?: boolean;
 }
 
 export const StaffManager: React.FC<StaffManagerProps> = ({
@@ -23,9 +25,11 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
   onOpenSyncDialog,
   smarthrConfigured,
   showUnconfiguredOnly = false,
-  setShowUnconfiguredOnly
+  setShowUnconfiguredOnly,
+  canEdit = true
 }) => {
   const [deleteTargetId, setDeleteTargetId] = useState<{id: string, name: string} | null>(null);
+  const [salaryEditorStaff, setSalaryEditorStaff] = useState<Staff | null>(null);
 
   // 基本給未設定（デフォルト値）の職員をフィルタリング
   const allOfficeStaff = staffList.filter(s => s.officeId === selectedOfficeId);
@@ -75,6 +79,11 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
       .filter((q): q is any => !!q)
       .sort((a, b) => a.priority - b.priority); // priorityの昇順
     return applicableQuals.length > 0 ? applicableQuals[0].id : null;
+  };
+
+  const handleSalaryEditorSave = (updatedStaff: Staff) => {
+    setStaffList(prev => prev.map(s => s.id === updatedStaff.id ? updatedStaff : s));
+    setSalaryEditorStaff(null);
   };
 
   return (
@@ -144,9 +153,10 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">氏名</th>
+              <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">社員番号</th>
               <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">入社日</th>
               <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">退職日</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">基本給 (月額)</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">基本給</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">保有資格 (★=優先反映)</th>
               <th className="px-6 py-4 w-20"></th>
             </tr>
@@ -157,18 +167,33 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
               return (
                 <tr key={s.id} className={`hover:bg-slate-50/50 transition-colors ${s.resignedAt ? 'opacity-50' : ''}`}>
                   <td className="px-6 py-4">
-                    <input type="text" value={s.name} onChange={(e) => handleUpdateStaff(s.id, 'name', e.target.value)} className="w-full bg-transparent border-none focus:ring-0 font-medium text-slate-700 p-0" placeholder="氏名を入力" />
+                    <input type="text" value={s.name} onChange={(e) => handleUpdateStaff(s.id, 'name', e.target.value)} className="w-full bg-transparent border-none focus:ring-0 font-medium text-slate-700 p-0" placeholder="氏名を入力" disabled={!canEdit} />
                   </td>
                   <td className="px-4 py-4">
-                    <input type="date" value={s.enteredAt || ''} onChange={(e) => handleUpdateStaff(s.id, 'enteredAt', e.target.value || undefined)} className="bg-transparent border-none focus:ring-0 text-sm text-slate-600 p-0" />
+                    <span className="text-sm text-slate-500 font-mono">
+                      {s.smarthrEmpCode || '-'}
+                    </span>
                   </td>
                   <td className="px-4 py-4">
-                    <input type="date" value={s.resignedAt || ''} onChange={(e) => handleUpdateStaff(s.id, 'resignedAt', e.target.value || undefined)} className="bg-transparent border-none focus:ring-0 text-sm text-slate-600 p-0" />
+                    <input type="date" value={s.enteredAt || ''} onChange={(e) => handleUpdateStaff(s.id, 'enteredAt', e.target.value || undefined)} className="bg-transparent border-none focus:ring-0 text-sm text-slate-600 p-0" disabled={!canEdit} />
+                  </td>
+                  <td className="px-4 py-4">
+                    <input type="date" value={s.resignedAt || ''} onChange={(e) => handleUpdateStaff(s.id, 'resignedAt', e.target.value || undefined)} className="bg-transparent border-none focus:ring-0 text-sm text-slate-600 p-0" disabled={!canEdit} />
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-1">
-                      <span className="text-slate-400 text-sm">¥</span>
-                      <input type="number" value={s.baseSalary} onChange={(e) => handleUpdateStaff(s.id, 'baseSalary', Number(e.target.value))} className="w-32 bg-transparent border-none focus:ring-0 font-bold text-slate-800 p-0" step="1000" />
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-800">¥{s.baseSalary.toLocaleString()}</span>
+                      {(s.baseSalaryHistory?.length || 0) > 0 && (
+                        <span className="text-[10px] text-slate-400">({s.baseSalaryHistory?.length}件)</span>
+                      )}
+                      {canEdit && (
+                        <button
+                          onClick={() => setSalaryEditorStaff(s)}
+                          className="text-xs px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold border border-indigo-200"
+                        >
+                          給与管理
+                        </button>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -214,6 +239,15 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
           </span>
         </p>
       </div>
+
+      {/* 給与管理モーダル */}
+      {salaryEditorStaff && (
+        <BaseSalaryHistoryEditor
+          staff={salaryEditorStaff}
+          onSave={handleSalaryEditorSave}
+          onClose={() => setSalaryEditorStaff(null)}
+        />
+      )}
     </div>
   );
 };

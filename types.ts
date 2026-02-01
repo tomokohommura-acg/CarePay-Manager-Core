@@ -54,7 +54,8 @@ export interface Staff {
   id: string;
   officeId: string;
   name: string;
-  baseSalary: number;
+  baseSalary: number;                      // 最新の基本給（後方互換用）
+  baseSalaryHistory?: BaseSalaryRevision[]; // 改定履歴配列
   qualifications: string[];
   previousSalary?: number;
   // 入社日・退職日
@@ -158,4 +159,54 @@ export interface SmartHRSkippedItem {
   empCode: string;
   name: string;
   reason: string;
+}
+
+// ============================================
+// GWS認証 + 権限管理
+// ============================================
+
+export type UserRole = 'admin' | 'evaluator' | 'viewer';
+
+export interface AppUser {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+  role: UserRole;
+  createdAt: string;
+}
+
+// ============================================
+// 基本給改定履歴管理
+// ============================================
+
+export interface BaseSalaryRevision {
+  id: string;              // UUID
+  effectiveMonth: string;  // "YYYY-MM" 形式（例："2024-04"）
+  amount: number;          // 基本給額
+  memo?: string;           // 変更理由メモ（任意）
+  createdAt: string;       // 作成日時
+}
+
+// ============================================
+// 評価履歴の変更ログ
+// ============================================
+
+export interface ChangeLogEntry {
+  id: string;
+  timestamp: string;
+  userId: string;           // 変更したユーザー
+  userName: string;
+  periodId: string;
+  periodName: string;
+  changes: ChangeDetail[];
+}
+
+export interface ChangeDetail {
+  staffId: string;
+  staffName: string;
+  field: string;            // "baseSalary" | "attendance_xxx" | "performance_xxx"
+  fieldName: string;        // "基本給" | "欠勤" など
+  oldValue: number | string;
+  newValue: number | string;
 }

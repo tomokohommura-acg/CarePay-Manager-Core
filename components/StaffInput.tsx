@@ -12,21 +12,23 @@ interface StaffInputProps {
   onSaveHistory: () => void;
   onSync: () => void;
   onOpenDashboard: (staffId: string) => void;
+  canEdit?: boolean;
 }
 
-export const StaffInput: React.FC<StaffInputProps> = ({ 
-  records, 
-  master, 
-  inputs, 
+export const StaffInput: React.FC<StaffInputProps> = ({
+  records,
+  master,
+  inputs,
   selectedPeriodId,
   onPeriodChange,
   onInputChange,
   onSaveHistory,
   onSync,
-  onOpenDashboard
+  onOpenDashboard,
+  canEdit = true
 }) => {
   const activePeriod = master.periods.find(p => p.id === selectedPeriodId) || master.periods[0];
-  const isPeriodLocked = activePeriod?.status === 'locked';
+  const isPeriodLocked = activePeriod?.status === 'locked' || !canEdit;
 
   const calculateResult = (record: EvaluationRecord) => {
     const key = `${selectedPeriodId}_${record.staffId}`;

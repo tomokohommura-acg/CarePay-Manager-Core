@@ -41,6 +41,7 @@ export interface SmartHRCrew {
 export interface SmartHRCustomFieldTemplateElement {
   id: string;
   name: string;
+  physical_name?: string;  // SmartHR資格コード（英語識別子）
 }
 
 export interface SmartHRCustomFieldTemplate {

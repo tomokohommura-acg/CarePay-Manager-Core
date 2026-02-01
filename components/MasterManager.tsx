@@ -48,8 +48,18 @@ export const MasterManager: React.FC<MasterManagerProps> = ({
 
   // SmartHR部署一覧と資格選択肢を取得
   useEffect(() => {
+    console.log('[MasterManager] useEffect triggered, smarthrConfig:', {
+      hasSubdomain: !!smarthrConfig?.subdomain,
+      hasToken: !!smarthrConfig?.accessToken,
+      subdomain: smarthrConfig?.subdomain
+    });
+
     const loadSmartHRData = async () => {
-      if (!smarthrConfig?.subdomain || !smarthrConfig?.accessToken) return;
+      if (!smarthrConfig?.subdomain || !smarthrConfig?.accessToken) {
+        console.log('[MasterManager] SmartHR config missing, skipping load');
+        return;
+      }
+      console.log('[MasterManager] Loading SmartHR data...');
 
       setIsLoadingDepts(true);
       try {
@@ -61,6 +71,9 @@ export const MasterManager: React.FC<MasterManagerProps> = ({
           service.getDepartments(),
           service.getCustomFieldTemplates()
         ]);
+
+        console.log('[MasterManager] Templates loaded:', templates.length, 'items');
+        console.log('[MasterManager] Templates:', templates.map(t => ({ name: t.name, type: t.type, hasElements: !!t.elements, elementsCount: t.elements?.length })));
 
         // 資格関連のカスタム項目から選択肢を抽出（physical_nameを含む）
         const qualOptions: { id: string; name: string; physicalName: string }[] = [];
