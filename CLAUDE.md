@@ -45,14 +45,24 @@ firebase deploy --only hosting
 
 ### State Management
 
-App.tsxで全状態を管理し、LocalStorageに永続化（キー: `carepay_v2_state`）。評価データは `{periodId}_{staffId}` 形式の複合キーで管理。
+App.tsxで全状態を管理し、Firebase Firestoreに永続化。評価データは `{periodId}_{staffId}` 形式の複合キーで管理。
+
+**データ永続化:**
+- 認証状態: `contexts/AuthContext.tsx`
+- データ管理: `hooks/useFirestoreData.ts`
+- 初回起動時にLocalStorage（キー: `carepay_v2_state`）からFirestoreへ自動移行
 
 ### Key Components
 
 - **StaffInput**: 職員評価入力テーブル（給与計算ロジック内包）
 - **StaffDashboard**: 職員個別ダッシュボード（履歴タイムライン表示）
 - **MasterManager**: マスタデータ管理
-- **StaffManager**: 職員名簿管理
+- **StaffManager**: 職員名簿管理（給与管理ボタン、社員番号列含む）
+- **StaffAnalytics**: 職員分析BI（グラフ・テーブルで推移を可視化）
+- **HistoryView**: 評価履歴・変更ログ表示
+- **LoginPage**: Googleログイン画面
+- **UserManagement**: ユーザー・権限管理（管理者用）
+- **BaseSalaryHistoryEditor**: 基本給改定履歴管理モーダル
 
 ### Salary Calculation Logic (`StaffInput.tsx:31-74`)
 
@@ -491,37 +501,41 @@ GEMINI_API_KEY=your-gemini-api-key
 
 ---
 
-## TODO: 今後の対応事項
+## 実装ステータス（2026-02-01 完了）
 
-### Firebase Console設定（必須・未完了）
+### ✅ 完了済み
 
-1. **Firebase Console**（https://console.firebase.google.com）で`visit-care-salary`プロジェクトを開く
-2. **Authentication**を有効化
-   - 「Sign-in method」→「Google」を有効化
-   - 承認済みドメインに`localhost`と`visit-care-salary.web.app`を追加
-3. **Firestore Database**を作成
-   - 本番モードで開始
-   - リージョン: `asia-northeast1`（東京）
-4. **Firestoreセキュリティルール**を設定（認証済みユーザーのみアクセス可能に）
+#### Firebase Console設定
+- [x] Firebase Console（visit-care-salary）でAuthentication有効化
+- [x] Googleプロバイダー設定済み
+- [x] Firestoreデータベース作成済み
+- [x] Firestoreセキュリティルール（`firestore.rules`）デプロイ済み
 
-### 環境変数設定（必須・未完了）
+#### 環境変数設定
+- [x] `.env.local`ファイル作成
+- [x] Firebase SDK設定値を設定
+- [x] 初期管理者メール設定（`VITE_INITIAL_ADMIN_EMAIL`）
 
-1. `.env.local`ファイルを作成（`.env.local.example`を参考に）
-2. Firebase Consoleから設定値をコピー
-3. `VITE_INITIAL_ADMIN_EMAIL`に初期管理者のメールを設定
+#### 動作確認
+- [x] Googleログイン動作確認
+- [x] 初期管理者としてログイン成功
+- [x] 権限に応じたタブ表示確認
 
-### 動作確認（必須・未完了）
+---
 
-1. `npm run dev`で開発サーバー起動
-2. Googleログインが動作することを確認
-3. LocalStorageからFirestoreへのデータ移行を確認
-4. 権限に応じたタブ表示を確認
+## TODO: 将来的な改善
 
-### 将来的な改善（任意）
+### セキュリティ強化（推奨）
 
-- [ ] Firestoreセキュリティルールの詳細設定
+- [ ] Firestoreセキュリティルールの詳細設定（本番用ルールへの切り替え）
+  - `firestore.rules`にコメントアウトされた本番用ルールあり
+  - 権限ベースのアクセス制御を有効化
+
+### 機能改善（任意）
+
 - [ ] Cloud Functionsを使ったSmartHR API呼び出し（CORS回避）
 - [ ] データエクスポート機能のCSV出力実装
 - [ ] 評価期間に応じた基本給自動適用（`getEffectiveBaseSalary`の統合）
 - [ ] プッシュ通知（評価期間終了リマインダーなど）
 - [ ] バックアップ・リストア機能
+- [ ] Firebase Hostingへの本番デプロイ（`npm run build && firebase deploy --only hosting`）
