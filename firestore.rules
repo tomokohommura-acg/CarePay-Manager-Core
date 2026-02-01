@@ -1,0 +1,64 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 開発環境用: 認証済みユーザーは全データにアクセス可能
+    // 本番環境では権限ベースのルールに変更すること
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+
+// 本番用ルール（将来的に切り替え）
+// service cloud.firestore {
+//   match /databases/{database}/documents {
+//     function isAuthenticated() {
+//       return request.auth != null;
+//     }
+//     function isAdmin() {
+//       return isAuthenticated() &&
+//         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+//     }
+//     function isEvaluatorOrAbove() {
+//       return isAuthenticated() &&
+//         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'evaluator'];
+//     }
+//     match /users/{userId} {
+//       allow read: if isAuthenticated();
+//       allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+//     }
+//     match /offices/{officeId} {
+//       allow read: if isAuthenticated();
+//       allow write: if isAdmin();
+//     }
+//     match /staff/{staffId} {
+//       allow read: if isAuthenticated();
+//       allow write: if isEvaluatorOrAbove();
+//     }
+//     match /masters/{docId} {
+//       allow read: if isAuthenticated();
+//       allow write: if isAdmin();
+//     }
+//     match /evaluationRecords/{recordId} {
+//       allow read: if isAuthenticated();
+//       allow write: if isEvaluatorOrAbove();
+//     }
+//     match /inputs/{inputId} {
+//       allow read: if isAuthenticated();
+//       allow write: if isEvaluatorOrAbove();
+//     }
+//     match /history/{historyId} {
+//       allow read: if isAuthenticated();
+//       allow write: if isEvaluatorOrAbove();
+//     }
+//     match /changeLog/{logId} {
+//       allow read: if isAuthenticated();
+//       allow write: if isEvaluatorOrAbove();
+//     }
+//     match /config/{configId} {
+//       allow read: if isAuthenticated();
+//       allow write: if isAdmin();
+//     }
+//   }
+// }
