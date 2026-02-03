@@ -17,8 +17,11 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
-  isEvaluator: boolean;
-  canEdit: boolean;
+  canAccessOffice: (officeId: string) => boolean;
+  canEditOffice: (officeId: string) => boolean;
+  canViewOffice: (officeId: string) => boolean;
+  getOfficePermission: (officeId: string) => 'edit' | 'view' | null;
+  getAllowedOfficeIds: () => string[] | null;  // null = 全事業所アクセス可
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -122,8 +125,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isAdmin = appUser?.role === 'admin';
-  const isEvaluator = appUser?.role === 'evaluator' || isAdmin;
-  const canEdit = isEvaluator;
+
+  // 事業所ごとの権限を取得
+  const getOfficePermission = (officeId: string): 'edit' | 'view' | null => {
+    if (!appUser) return null;
+    if (isAdmin) return 'edit';  // 管理者は全事業所編集可
+
+    // 新形式: officePermissionsを使用
+    if (appUser.officePermissions && appUser.officePermissions.length > 0) {
+      const perm = appUser.officePermissions.find(p => p.officeId === officeId);
+      return perm?.permission || null;
+    }
+
+    // 旧形式との後方互換: allowedOfficeIds
+    if (appUser.allowedOfficeIds && appUser.allowedOfficeIds.length > 0) {
+      if (!appUser.allowedOfficeIds.includes(officeId)) return null;
+      // 旧evaluator/viewerロールの互換
+      if (appUser.role === 'evaluator') return 'edit';
+      return 'view';
+    }
+
+    // 未設定の場合は全事業所閲覧可能
+    return 'view';
+  };
+
+  // 事業所にアクセスできるか（閲覧または編集）
+  const canAccessOffice = (officeId: string): boolean => {
+    return getOfficePermission(officeId) !== null;
+  };
+
+  // 事業所を編集できるか
+  const canEditOffice = (officeId: string): boolean => {
+    return getOfficePermission(officeId) === 'edit';
+  };
+
+  // 事業所を閲覧できるか（編集権限があれば閲覧も可）
+  const canViewOffice = (officeId: string): boolean => {
+    const perm = getOfficePermission(officeId);
+    return perm === 'edit' || perm === 'view';
+  };
+
+  // アクセス可能な事業所IDリストを取得（null = 全事業所）
+  const getAllowedOfficeIds = (): string[] | null => {
+    if (!appUser) return [];
+    if (isAdmin) return null;  // 管理者は全事業所
+
+    // 新形式: officePermissionsを使用
+    if (appUser.officePermissions && appUser.officePermissions.length > 0) {
+      return appUser.officePermissions.map(p => p.officeId);
+    }
+
+    // 旧形式との後方互換
+    if (!appUser.allowedOfficeIds || appUser.allowedOfficeIds.length === 0) return null;
+    return appUser.allowedOfficeIds;
+  };
 
   return (
     <AuthContext.Provider
@@ -135,8 +190,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInWithGoogle,
         logout,
         isAdmin,
-        isEvaluator,
-        canEdit
+        canAccessOffice,
+        canEditOffice,
+        canViewOffice,
+        getOfficePermission,
+        getAllowedOfficeIds
       }}
     >
       {children}

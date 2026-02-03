@@ -165,7 +165,14 @@ export interface SmartHRSkippedItem {
 // GWS認証 + 権限管理
 // ============================================
 
-export type UserRole = 'admin' | 'evaluator' | 'viewer';
+export type UserRole = 'admin' | 'user';
+
+export type OfficePermissionLevel = 'edit' | 'view';
+
+export interface OfficePermission {
+  officeId: string;
+  permission: OfficePermissionLevel;
+}
 
 export interface AppUser {
   uid: string;
@@ -173,6 +180,10 @@ export interface AppUser {
   displayName: string;
   photoURL?: string;
   role: UserRole;
+  // 旧形式（後方互換）
+  allowedOfficeIds?: string[];
+  // 新形式: 事業所ごとの権限設定（管理者は常に全権限）
+  officePermissions?: OfficePermission[];
   createdAt: string;
 }
 

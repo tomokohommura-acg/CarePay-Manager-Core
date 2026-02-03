@@ -17,42 +17,70 @@ interface StaffAnalyticsProps {
   offices: Office[];
   masters: Record<BusinessType, MasterData>;
   history: HistoryEntry[];
+  selectedOfficeId: string;
+  isAllOfficesMode?: boolean;
 }
+
+type StaffFilter = 'active' | 'resigned' | 'all';
 
 export const StaffAnalytics: React.FC<StaffAnalyticsProps> = ({
   staffList,
   offices,
   masters,
-  history
+  history,
+  selectedOfficeId,
+  isAllOfficesMode = false
 }) => {
-  const [selectedOfficeId, setSelectedOfficeId] = useState<string>(offices[0]?.id || '');
+  const [staffFilter, setStaffFilter] = useState<StaffFilter>('active');
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // 選択中の事業所に所属する職員
-  const officeStaff = useMemo(() => {
+  // 選択中の事業所の職員リスト（全事業所モードの場合は全職員）
+  const officeStaffList = useMemo(() => {
+    if (isAllOfficesMode) {
+      return staffList;
+    }
     return staffList.filter(s => s.officeId === selectedOfficeId);
-  }, [staffList, selectedOfficeId]);
+  }, [staffList, selectedOfficeId, isAllOfficesMode]);
+
+  // フィルタ適用後の職員リスト
+  const filteredStaffList = useMemo(() => {
+    let list = [...officeStaffList];
+
+    // 在籍状況でフィルタ
+    if (staffFilter === 'active') {
+      list = list.filter(s => !s.resignedAt);
+    } else if (staffFilter === 'resigned') {
+      list = list.filter(s => !!s.resignedAt);
+    }
+
+    // 検索クエリでフィルタ
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      list = list.filter(s =>
+        s.name.toLowerCase().includes(query) ||
+        s.smarthrEmpCode?.toLowerCase().includes(query)
+      );
+    }
+
+    // 名前順でソート
+    return list.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  }, [officeStaffList, staffFilter, searchQuery]);
 
   // 選択中の職員
   const selectedStaff = useMemo(() => {
     return staffList.find(s => s.id === selectedStaffId);
   }, [staffList, selectedStaffId]);
 
-  // 選択中の事業所
-  const selectedOffice = useMemo(() => {
-    return offices.find(o => o.id === selectedOfficeId);
-  }, [offices, selectedOfficeId]);
+  // 選択中の職員の事業所
+  const selectedStaffOffice = useMemo(() => {
+    return selectedStaff ? offices.find(o => o.id === selectedStaff.officeId) : null;
+  }, [selectedStaff, offices]);
 
   // マスタデータ
   const currentMaster = useMemo(() => {
-    return selectedOffice ? masters[selectedOffice.type] : null;
-  }, [selectedOffice, masters]);
-
-  // 事業所変更時に職員選択をリセット
-  const handleOfficeChange = (officeId: string) => {
-    setSelectedOfficeId(officeId);
-    setSelectedStaffId('');
-  };
+    return selectedStaffOffice ? masters[selectedStaffOffice.type] : null;
+  }, [selectedStaffOffice, masters]);
 
   // 職員の履歴データを抽出
   const staffHistoryData = useMemo(() => {
@@ -71,9 +99,8 @@ export const StaffAnalytics: React.FC<StaffAnalyticsProps> = ({
 
     // 履歴から該当職員のデータを抽出（期間順）
     const relevantHistory = history
-      .filter(h => h.officeId === selectedOfficeId)
+      .filter(h => h.officeId === selectedStaff.officeId)
       .sort((a, b) => {
-        // 期間の評価開始日でソート
         return a.period.evaluationStart.localeCompare(b.period.evaluationStart);
       });
 
@@ -123,7 +150,21 @@ export const StaffAnalytics: React.FC<StaffAnalyticsProps> = ({
     }
 
     return data;
-  }, [selectedStaff, selectedOfficeId, history, currentMaster, selectedStaffId]);
+  }, [selectedStaff, history, currentMaster, selectedStaffId]);
+
+  // 事業所名を取得
+  const getOfficeName = (officeId: string) => {
+    return offices.find(o => o.id === officeId)?.name || '不明';
+  };
+
+  // 選択中の事業所
+  const selectedOffice = useMemo(() => {
+    return offices.find(o => o.id === selectedOfficeId);
+  }, [offices, selectedOfficeId]);
+
+  // カウント（選択中の事業所内）
+  const activeCount = officeStaffList.filter(s => !s.resignedAt).length;
+  const resignedCount = officeStaffList.filter(s => !!s.resignedAt).length;
 
   if (offices.length === 0) {
     return (
@@ -136,59 +177,137 @@ export const StaffAnalytics: React.FC<StaffAnalyticsProps> = ({
   }
 
   return (
-    <div className="space-y-8">
-      {/* 職員選択 */}
+    <div className="space-y-6">
+      {/* ヘッダー */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <h3 className="text-lg font-bold text-slate-800 mb-4">📈 職員分析</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
-              事業所
-            </label>
-            <select
-              value={selectedOfficeId}
-              onChange={(e) => handleOfficeChange(e.target.value)}
-              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              {offices.map(office => (
-                <option key={office.id} value={office.id}>
-                  {office.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
-              職員
-            </label>
-            <select
-              value={selectedStaffId}
-              onChange={(e) => setSelectedStaffId(e.target.value)}
-              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              disabled={officeStaff.length === 0}
-            >
-              <option value="">-- 職員を選択 --</option>
-              {officeStaff.map(staff => (
-                <option key={staff.id} value={staff.id}>
-                  {staff.name}
-                  {staff.resignedAt && ' (退職済み)'}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-slate-800">📈 職員分析</h3>
+          {isAllOfficesMode && (
+            <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">
+              全事業所表示中
+            </span>
+          )}
+        </div>
+
+        {/* フィルタタブ */}
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            onClick={() => { setStaffFilter('active'); setSelectedStaffId(''); }}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              staffFilter === 'active'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            在籍中 ({activeCount})
+          </button>
+          <button
+            onClick={() => { setStaffFilter('resigned'); setSelectedStaffId(''); }}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              staffFilter === 'resigned'
+                ? 'bg-rose-600 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            退職済み ({resignedCount})
+          </button>
+          <button
+            onClick={() => { setStaffFilter('all'); setSelectedStaffId(''); }}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              staffFilter === 'all'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            全リスト ({officeStaffList.length})
+          </button>
+        </div>
+
+        {/* 検索 */}
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
+            検索
+          </label>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="名前または社員番号で検索..."
+            className="w-full md:w-64 px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          />
         </div>
       </div>
 
-      {/* 職員未選択時 */}
-      {!selectedStaff && (
-        <div className="bg-slate-50 rounded-2xl p-12 text-center border border-slate-200">
-          <div className="text-4xl mb-4">👤</div>
-          <h3 className="text-lg font-bold text-slate-800 mb-2">職員を選択してください</h3>
-          <p className="text-slate-500">職員を選択すると、給与と評価の推移が表示されます</p>
+      {/* 職員一覧 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
+          <h4 className="text-sm font-bold text-slate-700">
+            職員一覧 ({filteredStaffList.length}名)
+          </h4>
         </div>
-      )}
+        <div className="max-h-96 overflow-y-auto">
+          {filteredStaffList.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+              該当する職員がいません
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 sticky top-0">
+                <tr className="border-b border-slate-200">
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-widest">社員番号</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-widest">氏名</th>
+                  {isAllOfficesMode && (
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-widest">事業所</th>
+                  )}
+                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-widest">基本給</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-widest">状態</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredStaffList.map(staff => (
+                  <tr
+                    key={staff.id}
+                    onClick={() => setSelectedStaffId(staff.id)}
+                    className={`cursor-pointer transition-colors ${
+                      selectedStaffId === staff.id
+                        ? 'bg-indigo-50'
+                        : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <td className="px-4 py-3 font-mono text-slate-600">
+                      {staff.smarthrEmpCode || '-'}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-slate-800">
+                      {staff.name}
+                    </td>
+                    {isAllOfficesMode && (
+                      <td className="px-4 py-3 text-slate-600 text-sm">
+                        {getOfficeName(staff.officeId)}
+                      </td>
+                    )}
+                    <td className="px-4 py-3 text-right text-slate-700">
+                      ¥{staff.baseSalary.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {staff.resignedAt ? (
+                        <span className="px-2 py-1 bg-rose-100 text-rose-600 rounded-full text-xs font-medium">
+                          退職済み
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 bg-emerald-100 text-emerald-600 rounded-full text-xs font-medium">
+                          在籍中
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
 
-      {/* 職員情報 */}
+      {/* 職員詳細 */}
       {selectedStaff && (
         <>
           {/* 職員プロファイル */}
@@ -203,6 +322,7 @@ export const StaffAnalytics: React.FC<StaffAnalyticsProps> = ({
                   {selectedStaff.smarthrEmpCode && (
                     <span className="font-mono">社員番号: {selectedStaff.smarthrEmpCode}</span>
                   )}
+                  <span>事業所: {getOfficeName(selectedStaff.officeId)}</span>
                   {selectedStaff.enteredAt && (
                     <span>入社日: {selectedStaff.enteredAt}</span>
                   )}
@@ -329,6 +449,15 @@ export const StaffAnalytics: React.FC<StaffAnalyticsProps> = ({
             </div>
           )}
         </>
+      )}
+
+      {/* 職員未選択時 */}
+      {!selectedStaff && filteredStaffList.length > 0 && (
+        <div className="bg-slate-50 rounded-2xl p-12 text-center border border-slate-200">
+          <div className="text-4xl mb-4">👆</div>
+          <h3 className="text-lg font-bold text-slate-800 mb-2">職員を選択してください</h3>
+          <p className="text-slate-500">上の一覧から職員をクリックすると、詳細が表示されます</p>
+        </div>
       )}
     </div>
   );

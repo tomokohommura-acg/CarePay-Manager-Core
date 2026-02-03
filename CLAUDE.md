@@ -83,14 +83,15 @@ const setSmarthrConfig = useCallback((value) => {
 
 ### Key Components
 
+- **Layout**: サイドバー・ヘッダーレイアウト（事業所選択、全事業所オプション含む）
 - **StaffInput**: 職員評価入力テーブル（給与計算ロジック内包）
 - **StaffDashboard**: 職員個別ダッシュボード（履歴タイムライン表示）
-- **MasterManager**: マスタデータ管理
-- **StaffManager**: 職員名簿管理（給与管理ボタン、社員番号列含む）
-- **StaffAnalytics**: 職員分析BI（グラフ・テーブルで推移を可視化）
+- **MasterManager**: マスタデータ管理（評価期間の2行ヘッダーテーブル含む）
+- **StaffManager**: 職員名簿管理（給与管理ボタン、社員番号列、基本給更新日列含む）
+- **StaffAnalytics**: 職員分析BI（グラフ・テーブルで推移を可視化、全事業所対応）
 - **HistoryView**: 評価履歴・変更ログ表示
 - **LoginPage**: Googleログイン画面
-- **UserManagement**: ユーザー・権限管理（管理者用）
+- **UserManagement**: ユーザー・権限管理（事業所別権限設定対応）
 - **BaseSalaryHistoryEditor**: 基本給改定履歴管理モーダル
 
 ### Salary Calculation Logic (`StaffInput.tsx:31-74`)
@@ -361,11 +362,11 @@ const unconfiguredCount = allOfficeStaff.filter(s => s.baseSalary === DEFAULT_BA
 
 ---
 
-## GWS認証 + 権限管理（2026-02-01 実装）
+## GWS認証 + 権限管理（2026-02-01 実装、2026-02-03 更新）
 
 ### 概要
 
-Google Workspaceアカウントでログインし、3段階の権限（管理者/評価者/閲覧者）でアクセス制御を行う。
+Google Workspaceアカウントでログインし、管理者/一般ユーザーの2段階権限 + 事業所ごとの細かなアクセス制御を行う。
 
 ### 認証方式
 
@@ -373,17 +374,32 @@ Firebase Authentication（Googleプロバイダー）を使用。ホワイトリ
 
 ### 権限レベル
 
-| 権限 | マスタ管理 | 評価入力 | 閲覧 | SmartHR連携 | ユーザー管理 |
-|-----|----------|---------|-----|------------|------------|
-| admin（管理者） | ○ | ○ | ○ | ○ | ○ |
-| evaluator（評価者） | × | ○ | ○ | × | × |
-| viewer（閲覧者） | × | × | ○ | × | × |
+| 権限 | マスタ管理 | 評価入力 | 閲覧 | SmartHR連携 | ユーザー管理 | 全事業所表示 |
+|-----|----------|---------|-----|------------|------------|------------|
+| admin（管理者） | ○ | ○ | ○ | ○ | ○ | ○ |
+| user（一般） | × | 事業所別 | 事業所別 | × | × | × |
+
+### 事業所別権限（一般ユーザー向け）
+
+一般ユーザーは事業所ごとに「編集」「閲覧」「アクセス不可」を設定可能。
+
+| 権限レベル | 評価入力 | 閲覧 |
+|-----------|---------|-----|
+| edit（編集） | ○ | ○ |
+| view（閲覧） | × | ○ |
+| なし | × | × |
 
 ### データ構造
 
 ```typescript
 // types.ts
-type UserRole = 'admin' | 'evaluator' | 'viewer';
+type UserRole = 'admin' | 'user';
+type OfficePermissionLevel = 'edit' | 'view';
+
+interface OfficePermission {
+  officeId: string;
+  permission: OfficePermissionLevel;
+}
 
 interface AppUser {
   uid: string;
@@ -392,7 +408,25 @@ interface AppUser {
   photoURL?: string;
   role: UserRole;
   createdAt: string;
+  officePermissions?: OfficePermission[];  // 事業所別権限
+  allowedOfficeIds?: string[];             // 後方互換用
 }
+```
+
+### 権限判定関数（AuthContext）
+
+```typescript
+// 事業所へのアクセス可否
+canAccessOffice(officeId: string): boolean
+
+// 事業所の編集権限
+canEditOffice(officeId: string): boolean
+
+// 事業所の閲覧権限
+canViewOffice(officeId: string): boolean
+
+// 事業所の権限レベル取得
+getOfficePermission(officeId: string): 'edit' | 'view' | null
 ```
 
 ### 関連ファイル
@@ -526,20 +560,24 @@ interface ChangeDetail {
 
 ---
 
-## 職員分析BI（2026-02-01 実装）
+## 職員分析BI（2026-02-01 実装、2026-02-03 更新）
 
 ### 概要
 
-職員ごとの給与・評価の推移を可視化する分析画面。
+職員ごとの給与・評価の推移を可視化する分析画面。管理者は全事業所の職員を横断的に分析可能。
 
 ### 表示内容
 
-1. **職員選択**: 事業所フィルター → 職員プルダウン
+1. **職員選択**: 職員プルダウン（トップレベルの事業所選択に連動）
 2. **基本給の推移**: 改定履歴を折れ線グラフで表示
 3. **最終支給額の推移**: 期間ごとの支給額を折れ線グラフで表示
 4. **給与内訳の推移**: 基本給・資格手当・控除・加算を積み上げ棒グラフで表示
 5. **評価項目の推移**: 勤怠控除・業績評価をテーブルで表示
 6. **期間別サマリー**: 全項目をテーブルで一覧表示
+
+### 全事業所表示（管理者専用）
+
+管理者がサイドバーで「📊 全事業所」を選択すると、全事業所の職員を一覧表示。職員選択プルダウンに事業所名カラムが追加される。
 
 ### 使用ライブラリ
 
@@ -553,6 +591,82 @@ interface ChangeDetail {
 | `components/StaffAnalytics.tsx` | 職員分析BIメイン画面 |
 | `components/SalaryChart.tsx` | 基本給・支給額・内訳グラフ |
 | `components/EvaluationTable.tsx` | 評価項目推移テーブル |
+
+---
+
+## CSV出力機能（2026-02-03 実装）
+
+### 概要
+
+評価期間を選択して、給与計算結果をCSVファイルとしてエクスポートする機能。
+
+### 出力項目
+
+| 項目名 | 説明 |
+|-------|------|
+| 職員名 | 職員の氏名 |
+| 基本給与 | 評価期間に適用される基本給 |
+| 資格手当 | 最優先資格の手当額 |
+| 正規給与 | 基本給与 + 資格手当 |
+| 減額合計 | 勤怠控除の合計額 |
+| 評価合計 | 業績評価の合計額 |
+| 特別加減算 | 特別加減算額 |
+| 最終支給額 | 正規給与 - 減額合計 + 評価合計 + 特別加減算 |
+| 旧給与 | 前期間の支給額 |
+| 差分 | 最終支給額 - 旧給与 |
+
+### 使用方法
+
+1. 「CSV出力」タブを選択
+2. エクスポートする評価期間をプルダウンで選択
+3. 「CSVダウンロード」ボタンをクリック
+4. UTF-8（BOM付き）形式でダウンロード（Excel互換）
+
+### 実装詳細
+
+```typescript
+// App.tsx - CSV生成
+const generateCSV = () => {
+  const BOM = '\uFEFF';  // Excel UTF-8対応
+  const headers = ['職員名', '基本給与', '資格手当', ...];
+  // 給与計算ロジックを適用してデータ生成
+};
+```
+
+---
+
+## 職員名簿の追加機能（2026-02-03 実装）
+
+### 基本給更新日カラム
+
+職員名簿テーブルに「基本給更新日」カラムを追加。基本給改定履歴の中で最も新しい`createdAt`を日時形式で表示。
+
+```typescript
+// StaffManager.tsx
+const latestEntry = [...history].sort((a, b) =>
+  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+)[0];
+```
+
+---
+
+## 評価期間管理UIの改善（2026-02-03 実装）
+
+### 概要
+
+マスタ管理の評価期間テーブルを2行ヘッダー構造に変更し、評価対象期間と支払対象期間を視覚的に区別。
+
+### テーブル構造
+
+```
+| 期間名 | 評価対象期間      | 支払対象期間      | ステータス | 操作 |
+|       | 開始    | 終了    | 開始    | 終了    |           |     |
+```
+
+### スタイリング
+
+- 評価対象期間: スレートグレーのバッジ
+- 支払対象期間: インディゴのバッジ
 
 ---
 
@@ -578,7 +692,7 @@ GEMINI_API_KEY=your-gemini-api-key
 
 ---
 
-## 実装ステータス（2026-02-01 完了）
+## 実装ステータス（2026-02-03 更新）
 
 ### ✅ 完了済み
 
@@ -598,6 +712,14 @@ GEMINI_API_KEY=your-gemini-api-key
 - [x] 初期管理者としてログイン成功
 - [x] 権限に応じたタブ表示確認
 
+#### 2026-02-03 追加機能
+- [x] 権限システムの簡素化（admin/userの2段階）
+- [x] 事業所別権限設定（edit/view/none）
+- [x] 管理者向け「全事業所」表示オプション
+- [x] CSV出力機能（評価期間選択、給与計算結果エクスポート）
+- [x] 職員名簿に「基本給更新日」カラム追加
+- [x] 評価期間管理UIの改善（2行ヘッダー構造）
+
 ---
 
 ## TODO: 将来的な改善
@@ -611,7 +733,7 @@ GEMINI_API_KEY=your-gemini-api-key
 ### 機能改善（任意）
 
 - [ ] Cloud Functionsを使ったSmartHR API呼び出し（CORS回避）
-- [ ] データエクスポート機能のCSV出力実装
+- [x] ~~データエクスポート機能のCSV出力実装~~ → 2026-02-03完了
 - [ ] 評価期間に応じた基本給自動適用（`getEffectiveBaseSalary`の統合）
 - [ ] プッシュ通知（評価期間終了リマインダーなど）
 - [ ] バックアップ・リストア機能

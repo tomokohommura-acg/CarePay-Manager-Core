@@ -15,7 +15,7 @@ import { useFirestoreData } from './hooks/useFirestoreData';
 import { BusinessType, MasterData, StaffUpdateData, HistoryEntry, EvaluationRecord, ChangeLogEntry, ChangeDetail } from './types';
 
 const AppContent: React.FC = () => {
-  const { appUser, loading: authLoading, logout, isAdmin, isEvaluator, canEdit } = useAuth();
+  const { appUser, loading: authLoading, logout, isAdmin, canAccessOffice, canEditOffice } = useAuth();
   const isAuthenticated = !!appUser;
 
   const {
@@ -48,26 +48,34 @@ const AppContent: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<TabType>('staff');
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>('');
+  const [exportPeriodId, setExportPeriodId] = useState<string>('');
+
+  // アクセス可能な事業所のみをフィルタリング
+  const accessibleOffices = offices.filter(o => canAccessOffice(o.id));
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [showUnconfiguredOnly, setShowUnconfiguredOnly] = useState(false);
   const [viewingStaffId, setViewingStaffId] = useState<string | null>(null);
 
-  // 初回ロード時: 最初の事業所と期間を選択
+  // 初回ロード時: 最初のアクセス可能な事業所を選択
   useEffect(() => {
-    if (offices.length > 0 && !selectedOfficeId) {
-      setSelectedOfficeId(offices[0].id);
+    if (accessibleOffices.length > 0 && !selectedOfficeId) {
+      setSelectedOfficeId(accessibleOffices[0].id);
     }
-  }, [offices, selectedOfficeId]);
+    // 選択中の事業所にアクセスできなくなった場合、リセット
+    if (selectedOfficeId && !canAccessOffice(selectedOfficeId) && accessibleOffices.length > 0) {
+      setSelectedOfficeId(accessibleOffices[0].id);
+    }
+  }, [accessibleOffices, selectedOfficeId, canAccessOffice]);
 
   useEffect(() => {
-    const selectedOffice = offices.find(o => o.id === selectedOfficeId) || offices[0];
+    const selectedOffice = accessibleOffices.find(o => o.id === selectedOfficeId) || accessibleOffices[0];
     if (selectedOffice) {
       const currentMaster = masters[selectedOffice.type];
       if (currentMaster?.periods?.length > 0 && !selectedPeriodId) {
         setSelectedPeriodId(currentMaster.periods[0].id);
       }
     }
-  }, [selectedOfficeId, masters, offices, selectedPeriodId, setSelectedPeriodId]);
+  }, [selectedOfficeId, masters, accessibleOffices, selectedPeriodId, setSelectedPeriodId]);
 
   // 認証ローディング中
   if (authLoading) {
@@ -98,11 +106,16 @@ const AppContent: React.FC = () => {
     );
   }
 
-  const selectedOffice = offices.find(o => o.id === selectedOfficeId) || offices[0];
+  // 「全事業所」選択時は最初の事業所をフォールバックとして使用
+  const isAllOfficesSelected = selectedOfficeId === 'all';
+  const selectedOffice = isAllOfficesSelected
+    ? accessibleOffices[0]
+    : (accessibleOffices.find(o => o.id === selectedOfficeId) || accessibleOffices[0]);
+
   if (!selectedOffice) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <p className="text-slate-500">事業所データがありません</p>
+        <p className="text-slate-500">アクセス可能な事業所がありません</p>
       </div>
     );
   }
@@ -110,6 +123,9 @@ const AppContent: React.FC = () => {
   const businessType = selectedOffice.type;
   const currentMaster = masters[businessType];
   const activePeriod = currentMaster?.periods?.find(p => p.id === selectedPeriodId) || currentMaster?.periods?.[0];
+
+  // 選択中の事業所に対する編集権限（全事業所モードでは編集不可）
+  const canEditCurrentOffice = isAllOfficesSelected ? false : canEditOffice(selectedOfficeId);
 
   // 現在の事業所 + 選択中の期間 に所属するスナップショットを抽出
   const recordKeyPrefix = `${selectedPeriodId}_`;
@@ -309,14 +325,14 @@ const AppContent: React.FC = () => {
     <Layout
       activeTab={activeTab}
       setActiveTab={setActiveTab}
-      offices={offices}
+      offices={accessibleOffices}
       selectedOfficeId={selectedOfficeId}
       setSelectedOfficeId={setSelectedOfficeId}
       periodConfig={activePeriod ? { evaluationStart: activePeriod.evaluationStart, evaluationEnd: activePeriod.evaluationEnd, paymentStart: activePeriod.paymentStart, paymentEnd: activePeriod.paymentEnd } : { evaluationStart: '', evaluationEnd: '', paymentStart: '', paymentEnd: '' }}
       user={appUser}
       onLogout={logout}
       isAdmin={isAdmin}
-      canEdit={canEdit}
+      canEdit={canEditCurrentOffice}
     >
       {viewingStaffId && dashboardRecord && dashboardInput && (
         <StaffDashboard
@@ -339,7 +355,7 @@ const AppContent: React.FC = () => {
           onSaveHistory={handleSaveToHistory}
           onSync={syncStaffFromMaster}
           onOpenDashboard={(id) => setViewingStaffId(id)}
-          canEdit={canEdit}
+          canEdit={canEditCurrentOffice}
         />
       )}
 
@@ -353,16 +369,18 @@ const AppContent: React.FC = () => {
           smarthrConfigured={!!smarthrConfig.subdomain && !!smarthrConfig.accessToken}
           showUnconfiguredOnly={showUnconfiguredOnly}
           setShowUnconfiguredOnly={setShowUnconfiguredOnly}
-          canEdit={canEdit}
+          canEdit={canEditCurrentOffice}
         />
       )}
 
       {activeTab === 'analytics' && (
         <StaffAnalytics
           staffList={staffList}
-          offices={offices}
+          offices={isAdmin ? offices : accessibleOffices}
           masters={masters}
           history={history}
+          selectedOfficeId={selectedOfficeId}
+          isAllOfficesMode={isAllOfficesSelected}
         />
       )}
 
@@ -418,22 +436,144 @@ const AppContent: React.FC = () => {
       )}
 
       {activeTab === 'user_management' && isAdmin && appUser && (
-        <UserManagement currentUser={appUser} />
+        <UserManagement currentUser={appUser} offices={offices} />
       )}
 
-      {activeTab === 'export' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-2xl mx-auto text-center">
-          <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">📥</div>
-          <h3 className="text-2xl font-bold text-slate-800 mb-2">CSVエクスポート</h3>
-          <p className="text-slate-500 mb-8 leading-relaxed">
-            <span className="font-bold text-indigo-600">{selectedOffice.name}</span><br />
-            期間: <span className="font-bold">{activePeriod?.name}</span> の評価結果を出力します。
-          </p>
-          <button onClick={() => alert("エクスポート機能は現在、期間別フィルタリングを適用中です")} className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 shadow-lg">
-            CSVファイルをダウンロード
-          </button>
-        </div>
-      )}
+      {activeTab === 'export' && (() => {
+        const currentExportPeriodId = exportPeriodId || selectedPeriodId;
+        const exportPeriod = currentMaster?.periods?.find(p => p.id === currentExportPeriodId);
+
+        // エクスポート用の評価レコードを取得
+        const exportRecords = (Object.values(evaluationRecords) as EvaluationRecord[])
+          .filter(r => {
+            const isCorrectOffice = r.officeId === selectedOfficeId;
+            const isCorrectPeriod = Object.keys(evaluationRecords).find(key => evaluationRecords[key] === r)?.startsWith(`${currentExportPeriodId}_`);
+            return isCorrectOffice && isCorrectPeriod;
+          });
+
+        return (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-2xl mx-auto">
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">📥</div>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">CSVエクスポート</h3>
+              <p className="text-slate-500">
+                <span className="font-bold text-indigo-600">{selectedOffice.name}</span> の評価結果を出力します。
+              </p>
+            </div>
+
+            {/* 期間選択 */}
+            <div className="mb-8">
+              <label className="block text-sm font-bold text-slate-700 mb-2">評価期間 - 給与支払対象期間</label>
+              <select
+                value={currentExportPeriodId}
+                onChange={(e) => setExportPeriodId(e.target.value)}
+                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                {currentMaster?.periods?.map(period => (
+                  <option key={period.id} value={period.id}>
+                    {period.name}（評価: {period.evaluationStart}〜{period.evaluationEnd} / 支払: {period.paymentStart}〜{period.paymentEnd}）
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* プレビュー情報 */}
+            <div className="bg-slate-50 rounded-xl p-4 mb-8">
+              <div className="text-sm text-slate-600">
+                <div className="flex justify-between mb-2">
+                  <span>対象職員数:</span>
+                  <span className="font-bold">{exportRecords.length}名</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>選択中の期間:</span>
+                  <span className="font-bold">{exportPeriod?.name || '-'}</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                if (!exportPeriod) return;
+
+                // CSV出力用のデータを作成
+                const csvRows: string[] = [];
+
+                // ヘッダー行
+                csvRows.push(['社員番号', '氏名', '基本給与', '資格手当', '正規給与', '減額合計', '評価合計', '特別加減算', '最終支給額（新給与）', '旧給与', '差分'].join(','));
+
+                // データ行
+                exportRecords.forEach(record => {
+                  const key = `${currentExportPeriodId}_${record.staffId}`;
+                  const input = inputs[key] || { attendanceInputs: {}, performanceInputs: {}, staffId: record.staffId, periodId: currentExportPeriodId };
+                  const staff = staffList.find(s => s.id === record.staffId);
+
+                  // 資格手当計算
+                  const applicableQuals = record.qualifications
+                    .map(qId => currentMaster.qualifications.find(mq => mq.id === qId))
+                    .filter((q): q is typeof currentMaster.qualifications[0] => !!q)
+                    .sort((a, b) => a.priority - b.priority);
+                  const qualAllowances = applicableQuals.length > 0 ? applicableQuals[0].allowance : 0;
+
+                  // 正規給与
+                  const regularSalary = record.baseSalary + qualAllowances;
+
+                  // 減額合計
+                  let totalDeduction = 0;
+                  currentMaster.attendanceConditions.forEach(cond => {
+                    totalDeduction += (input.attendanceInputs[cond.id] || 0) * cond.unitAmount;
+                  });
+
+                  // 評価合計
+                  let totalPerformance = 0;
+                  currentMaster.performanceEvaluations.forEach(pe => {
+                    totalPerformance += (input.performanceInputs[pe.id] || 0) * pe.unitAmount;
+                  });
+
+                  // 特別加減算
+                  const netAdjustment = totalPerformance - totalDeduction;
+
+                  // 最終支給額（新給与）
+                  const updatedSalary = regularSalary + netAdjustment;
+
+                  // 旧給与・差分
+                  const previousSalary = record.previousSalary || 0;
+                  const diff = previousSalary > 0 ? previousSalary - updatedSalary : '';
+
+                  csvRows.push([
+                    staff?.smarthrEmpCode || '',
+                    record.name,
+                    record.baseSalary,
+                    qualAllowances,
+                    regularSalary,
+                    totalDeduction,
+                    totalPerformance,
+                    netAdjustment,
+                    updatedSalary,
+                    previousSalary || '',
+                    diff
+                  ].join(','));
+                });
+
+                // BOM付きUTF-8でCSV作成
+                const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+                const blob = new Blob([bom, csvRows.join('\n')], { type: 'text/csv;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${selectedOffice.name}_${exportPeriod.name}_評価結果.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              }}
+              disabled={exportRecords.length === 0}
+              className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              CSVファイルをダウンロード ({exportRecords.length}名)
+            </button>
+          </div>
+        );
+      })()}
     </Layout>
   );
 };

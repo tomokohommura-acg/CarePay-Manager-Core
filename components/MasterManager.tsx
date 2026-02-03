@@ -516,18 +516,31 @@ export const MasterManager: React.FC<MasterManagerProps> = ({
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
               <tr>
-                <th className="px-6 py-4">ステータス</th>
-                <th className="px-6 py-4">期間名</th>
-                <th className="px-6 py-4">評価対象期間</th>
-                <th className="px-6 py-4">給与反映期間</th>
-                <th className="w-16"></th>
+                <th className="px-4 py-4">ステータス</th>
+                <th className="px-4 py-4">期間名</th>
+                <th className="px-4 py-4 text-center border-l border-slate-200" colSpan={2}>
+                  <span className="bg-slate-100 px-2 py-1 rounded">評価対象期間</span>
+                </th>
+                <th className="px-4 py-4 text-center border-l border-slate-200" colSpan={2}>
+                  <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded">支払対象期間</span>
+                </th>
+                <th className="w-12"></th>
+              </tr>
+              <tr className="bg-slate-50/50 border-b border-slate-100 text-[9px]">
+                <th></th>
+                <th></th>
+                <th className="px-4 py-2 text-center border-l border-slate-200">開始</th>
+                <th className="px-4 py-2 text-center">終了</th>
+                <th className="px-4 py-2 text-center border-l border-slate-200">開始</th>
+                <th className="px-4 py-2 text-center">終了</th>
+                <th></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {data.periods.map(p => (
                 <tr key={p.id} className="hover:bg-slate-50/30">
-                  <td className="px-6 py-4">
-                    <button 
+                  <td className="px-4 py-4">
+                    <button
                       onClick={() => handleUpdatePeriod(p.id, 'status', p.status === 'editing' ? 'locked' : 'editing')}
                       className={`text-[10px] font-black px-3 py-1.5 rounded-full transition-all border flex items-center gap-1.5 ${
                         p.status === 'locked' ? 'bg-rose-50 border-rose-200 text-rose-600' : 'bg-emerald-50 border-emerald-200 text-emerald-600'
@@ -537,25 +550,27 @@ export const MasterManager: React.FC<MasterManagerProps> = ({
                       {p.status === 'locked' ? '確定済み' : '評価中'}
                     </button>
                   </td>
-                  <td className="px-6 py-4">
-                    <input 
-                      type="text" 
-                      value={p.name} 
-                      onChange={(e) => handleUpdatePeriod(p.id, 'name', e.target.value)} 
-                      className="w-full bg-transparent font-bold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-100 p-1 rounded" 
+                  <td className="px-4 py-4">
+                    <input
+                      type="text"
+                      value={p.name}
+                      onChange={(e) => handleUpdatePeriod(p.id, 'name', e.target.value)}
+                      className="w-full bg-transparent font-bold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-100 p-1 rounded"
                     />
                   </td>
-                  <td className="px-6 py-4 flex gap-1 items-center">
-                    <input type="month" value={p.evaluationStart} onChange={(e) => handleUpdatePeriod(p.id, 'evaluationStart', e.target.value)} className="bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-xs" />
-                    <span>~</span>
-                    <input type="month" value={p.evaluationEnd} onChange={(e) => handleUpdatePeriod(p.id, 'evaluationEnd', e.target.value)} className="bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-xs" />
+                  <td className="px-4 py-4 text-center border-l border-slate-100">
+                    <input type="month" value={p.evaluationStart} onChange={(e) => handleUpdatePeriod(p.id, 'evaluationStart', e.target.value)} className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs w-32" />
                   </td>
-                  <td className="px-6 py-4 flex gap-1 items-center">
-                    <input type="month" value={p.paymentStart} onChange={(e) => handleUpdatePeriod(p.id, 'paymentStart', e.target.value)} className="bg-indigo-50 border border-indigo-100 rounded px-1 py-0.5 text-xs font-bold text-indigo-700" />
-                    <span>~</span>
-                    <input type="month" value={p.paymentEnd} onChange={(e) => handleUpdatePeriod(p.id, 'paymentEnd', e.target.value)} className="bg-indigo-50 border border-indigo-100 rounded px-1 py-0.5 text-xs font-bold text-indigo-700" />
+                  <td className="px-4 py-4 text-center">
+                    <input type="month" value={p.evaluationEnd} onChange={(e) => handleUpdatePeriod(p.id, 'evaluationEnd', e.target.value)} className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs w-32" />
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-4 py-4 text-center border-l border-slate-100">
+                    <input type="month" value={p.paymentStart} onChange={(e) => handleUpdatePeriod(p.id, 'paymentStart', e.target.value)} className="bg-indigo-50 border border-indigo-100 rounded px-2 py-1 text-xs font-bold text-indigo-700 w-32" />
+                  </td>
+                  <td className="px-4 py-4 text-center">
+                    <input type="month" value={p.paymentEnd} onChange={(e) => handleUpdatePeriod(p.id, 'paymentEnd', e.target.value)} className="bg-indigo-50 border border-indigo-100 rounded px-2 py-1 text-xs font-bold text-indigo-700 w-32" />
+                  </td>
+                  <td className="px-4 py-4 text-right">
                     <button onClick={() => setDeleteTarget({ id: p.id, type: 'period', name: p.name })} className="text-slate-300 hover:text-rose-500 transition-colors">🗑️</button>
                   </td>
                 </tr>

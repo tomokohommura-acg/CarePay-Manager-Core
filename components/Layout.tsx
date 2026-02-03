@@ -80,13 +80,26 @@ export const Layout: React.FC<LayoutProps> = ({
               事業所切り替え
             </label>
             <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+              {/* 管理者のみ「全事業所」オプション */}
+              {isAdmin && (
+                <button
+                  onClick={() => setSelectedOfficeId('all')}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center justify-between ${
+                    selectedOfficeId === 'all'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  <span className="truncate font-medium">📊 全事業所</span>
+                </button>
+              )}
               {filteredOffices.map(office => (
                 <button
                   key={office.id}
                   onClick={() => setSelectedOfficeId(office.id)}
                   className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center justify-between ${
-                    selectedOfficeId === office.id 
-                    ? 'bg-indigo-600 text-white shadow-md' 
+                    selectedOfficeId === office.id
+                    ? 'bg-indigo-600 text-white shadow-md'
                     : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                   }`}
                 >

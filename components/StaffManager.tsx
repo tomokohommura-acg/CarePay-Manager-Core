@@ -157,6 +157,7 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
               <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">入社日</th>
               <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">退職日</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">基本給</th>
+              <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">基本給更新日</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">保有資格 (★=優先反映)</th>
               <th className="px-6 py-4 w-20"></th>
             </tr>
@@ -195,6 +196,23 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
                         </button>
                       )}
                     </div>
+                  </td>
+                  <td className="px-4 py-4">
+                    {(() => {
+                      // 最新の更新日時を取得
+                      const history = s.baseSalaryHistory || [];
+                      if (history.length === 0) return <span className="text-xs text-slate-400">-</span>;
+                      const latestEntry = [...history].sort((a, b) =>
+                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                      )[0];
+                      const date = new Date(latestEntry.createdAt);
+                      return (
+                        <div className="text-xs text-slate-600">
+                          <div>{date.toLocaleDateString('ja-JP')}</div>
+                          <div className="text-slate-400">{date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}</div>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-1.5">
