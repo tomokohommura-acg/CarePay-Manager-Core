@@ -73,7 +73,7 @@ export const BaseSalaryHistoryEditor: React.FC<BaseSalaryHistoryEditorProps> = (
             </div>
             <div className="text-right">
               <span className="text-xs text-slate-400 block">現在の基本給</span>
-              <span className="text-xl font-bold text-indigo-600">
+              <span className="text-xl font-bold text-[#26519f]">
                 ¥{localStaff.baseSalary.toLocaleString()}
               </span>
             </div>
@@ -100,7 +100,7 @@ export const BaseSalaryHistoryEditor: React.FC<BaseSalaryHistoryEditorProps> = (
                     key={rev.id}
                     className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
                       index === sortedHistory.length - 1
-                        ? 'bg-indigo-50 border-indigo-200'
+                        ? 'bg-[#26519f]/10 border-[#26519f]/30'
                         : 'bg-white border-slate-200 hover:border-slate-300'
                     }`}
                   >
@@ -207,7 +207,7 @@ export const BaseSalaryHistoryEditor: React.FC<BaseSalaryHistoryEditorProps> = (
           </button>
           <button
             onClick={handleSave}
-            className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg"
+            className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-[#26519f] hover:bg-[#1e4080] shadow-lg"
           >
             保存して閉じる
           </button>

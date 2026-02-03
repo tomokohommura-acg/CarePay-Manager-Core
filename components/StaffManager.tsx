@@ -115,7 +115,7 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
               title={smarthrConfigured ? 'SmartHRから従業員データを同期' : 'SmartHR連携設定を完了してください'}
               className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
                 smarthrConfigured
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-100'
+                  ? 'bg-[#00c4cc] text-white hover:bg-[#00a8b0] shadow-lg shadow-[#00c4cc]/30'
                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'
               }`}
             >
@@ -190,7 +190,7 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
                       {canEdit && (
                         <button
                           onClick={() => setSalaryEditorStaff(s)}
-                          className="text-xs px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold border border-indigo-200"
+                          className="text-xs px-2 py-1 rounded-lg bg-[#26519f]/10 text-[#26519f] hover:bg-[#26519f]/20 font-bold border border-[#26519f]/30"
                         >
                           給与管理
                         </button>
@@ -225,8 +225,8 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
                             onClick={() => toggleStaffQualification(s.id, q.id)}
                             className={`text-[10px] px-2.5 py-1 rounded-full border transition-all flex items-center gap-1 ${
                               isSelected
-                              ? (isPrimary 
-                                ? 'bg-indigo-600 border-indigo-700 text-white font-black shadow-sm ring-2 ring-indigo-200 ring-offset-1' 
+                              ? (isPrimary
+                                ? 'bg-[#26519f] border-[#1e4080] text-white font-black shadow-sm ring-2 ring-[#26519f]/30 ring-offset-1'
                                 : 'bg-slate-200 border-slate-300 text-slate-600 font-medium')
                               : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
                             }`}
@@ -248,8 +248,8 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
         </table>
       </div>
       
-      <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
-        <p className="text-xs text-indigo-600 flex items-start gap-2">
+      <div className="bg-[#26519f]/10 rounded-xl p-4 border border-[#26519f]/20">
+        <p className="text-xs text-[#26519f] flex items-start gap-2">
           <span className="mt-0.5">ℹ️</span>
           <span>
             資格が複数ある場合、マスタで設定された「優先順位」に基づき最上位の資格（★印）1つのみが給与に反映されます。

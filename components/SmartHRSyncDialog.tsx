@@ -58,7 +58,7 @@ export const SmartHRSyncDialog: React.FC<SmartHRSyncDialogProps> = ({
 
   // 雇用形態選択用
   const [employmentTypes, setEmploymentTypes] = useState<{ id: string; name: string }[]>([]);
-  const [selectedEmploymentTypes, setSelectedEmploymentTypes] = useState<string[]>(config.employmentTypeFilter);
+  const [selectedEmploymentTypes, setSelectedEmploymentTypes] = useState<string[]>(config.employmentTypeFilter || []);
   const [loadingEmploymentTypes, setLoadingEmploymentTypes] = useState(false);
 
   // ダイアログが開かれたときに雇用形態一覧を取得
@@ -71,7 +71,7 @@ export const SmartHRSyncDialog: React.FC<SmartHRSyncDialogProps> = ({
       setPreview(null);
       setError(null);
       setSyncResult(null);
-      setSelectedEmploymentTypes(config.employmentTypeFilter);
+      setSelectedEmploymentTypes(config.employmentTypeFilter || []);
     }
   }, [isOpen]);
 
@@ -90,11 +90,15 @@ export const SmartHRSyncDialog: React.FC<SmartHRSyncDialogProps> = ({
       setEmploymentTypes(types);
 
       // 「正社員」を初期値として選択（configに設定がない場合）
-      if (config.employmentTypeFilter.length === 0) {
+      const currentFilter = config.employmentTypeFilter || [];
+      if (currentFilter.length === 0) {
         const seishain = types.find(t => t.name === '正社員');
         if (seishain) {
           setSelectedEmploymentTypes([seishain.id]);
         }
+      } else {
+        // configに保存された設定を反映
+        setSelectedEmploymentTypes(currentFilter);
       }
 
       setStep('select_employment');

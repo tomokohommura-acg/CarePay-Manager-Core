@@ -54,10 +54,10 @@ export const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      <aside className="w-72 bg-slate-900 text-white flex flex-col">
-        <div className="p-6 border-b border-slate-800">
-          <h1 className="text-xl font-bold tracking-tight">CarePay Manager</h1>
-          <p className="text-xs text-slate-400 mt-1">事業所別・給与加算減算</p>
+      <aside className="w-72 bg-white text-slate-800 flex flex-col border-r border-slate-200">
+        <div className="p-6 bg-[#00c4cc]">
+          <h1 className="text-xl font-bold tracking-tight text-white">訪問系評価登録システム</h1>
+          <p className="text-xs text-white/80 mt-1">事業所別・給与加算減算</p>
         </div>
 
         <div className="p-4 space-y-6 flex-1 overflow-y-auto custom-scrollbar">
@@ -65,10 +65,10 @@ export const Layout: React.FC<LayoutProps> = ({
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">
               業態カテゴリ
             </label>
-            <select 
+            <select
               value={filterType}
               onChange={(e) => handleTypeChange(e.target.value as BusinessType)}
-              className="w-full bg-slate-800 border-slate-700 rounded-lg p-2.5 text-sm outline-none text-slate-200"
+              className="w-full bg-slate-100 border border-slate-300 rounded-lg p-2.5 text-sm outline-none text-slate-700"
             >
               <option value={BusinessType.HOME_CARE}>🏠 訪問介護</option>
               <option value={BusinessType.HOME_NURSING}>🏥 訪問看護</option>
@@ -86,8 +86,8 @@ export const Layout: React.FC<LayoutProps> = ({
                   onClick={() => setSelectedOfficeId('all')}
                   className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center justify-between ${
                     selectedOfficeId === 'all'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                    ? 'bg-[#00c4cc] text-white shadow-md'
+                    : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   <span className="truncate font-medium">📊 全事業所</span>
@@ -99,8 +99,8 @@ export const Layout: React.FC<LayoutProps> = ({
                   onClick={() => setSelectedOfficeId(office.id)}
                   className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center justify-between ${
                     selectedOfficeId === office.id
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                    ? 'bg-[#00c4cc] text-white shadow-md'
+                    : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   <span className="truncate font-medium">{office.name}</span>
@@ -109,34 +109,45 @@ export const Layout: React.FC<LayoutProps> = ({
             </div>
           </div>
 
-          <nav className="space-y-1 border-t border-slate-800 pt-6">
-            <button onClick={() => setActiveTab('staff')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'staff' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
-              📊 評価データ入力
-            </button>
-            <button onClick={() => setActiveTab('staff_list')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'staff_list' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
+          <nav className="space-y-1 border-t border-slate-200 pt-6">
+            {/* 評価管理グループ */}
+            <div className="px-3 py-2 mb-1">
+              <span className="text-base font-bold text-[#00c4cc]">📋 評価管理</span>
+            </div>
+            <button onClick={() => setActiveTab('staff_list')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'staff_list' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
               👥 職員名簿
             </button>
-            <button onClick={() => setActiveTab('analytics')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'analytics' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
-              📈 職員分析
+            <button onClick={() => setActiveTab('staff')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'staff' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+              📊 評価データ入力簿
             </button>
-            <button onClick={() => setActiveTab('history')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
+
+            {/* データ管理グループ */}
+            <div className="px-3 py-2 mt-5 mb-1 border-t-2 border-slate-200 pt-4">
+              <span className="text-base font-bold text-[#00c4cc]">📁 データ管理</span>
+            </div>
+            <button onClick={() => setActiveTab('history')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
               📋 評価履歴
             </button>
-            {isAdmin && (
-              <button onClick={() => setActiveTab('master')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'master' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
-                ⚙️ マスタ管理
-              </button>
-            )}
-            <button onClick={() => setActiveTab('export')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'export' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
+            <button onClick={() => setActiveTab('analytics')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'analytics' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+              📈 職員分析
+            </button>
+            <button onClick={() => setActiveTab('export')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'export' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
               📥 CSV出力
             </button>
+
+            {/* システム設定グループ（管理者のみ） */}
             {isAdmin && (
               <>
-                <div className="border-t border-slate-800 my-4"></div>
-                <button onClick={() => setActiveTab('smarthr_settings')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'smarthr_settings' ? 'bg-slate-800 text-emerald-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
+                <div className="px-3 py-2 mt-5 mb-1 border-t-2 border-slate-200 pt-4">
+                  <span className="text-base font-bold text-[#00c4cc]">⚙️ システム設定</span>
+                </div>
+                <button onClick={() => setActiveTab('master')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'master' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+                  ⚙️ マスタ管理
+                </button>
+                <button onClick={() => setActiveTab('smarthr_settings')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'smarthr_settings' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
                   🔗 SmartHR連携
                 </button>
-                <button onClick={() => setActiveTab('user_management')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'user_management' ? 'bg-slate-800 text-emerald-400 ring-1 ring-slate-700' : 'text-slate-300 hover:bg-slate-800'}`}>
+                <button onClick={() => setActiveTab('user_management')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'user_management' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
                   👥 ユーザー管理
                 </button>
               </>
@@ -165,11 +176,9 @@ export const Layout: React.FC<LayoutProps> = ({
                 <div className="text-right">
                   <span className="text-sm font-medium text-slate-700 block">{user.displayName}</span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    user.role === 'admin' ? 'bg-rose-100 text-rose-600' :
-                    user.role === 'evaluator' ? 'bg-amber-100 text-amber-600' :
-                    'bg-slate-100 text-slate-600'
+                    user.role === 'admin' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600'
                   }`}>
-                    {user.role === 'admin' ? '管理者' : user.role === 'evaluator' ? '評価者' : '閲覧者'}
+                    {user.role === 'admin' ? '管理者' : '一般'}
                   </span>
                 </div>
                 {user.photoURL ? (

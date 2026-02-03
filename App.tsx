@@ -454,10 +454,10 @@ const AppContent: React.FC = () => {
         return (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-2xl mx-auto">
             <div className="text-center mb-8">
-              <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-6">📥</div>
+              <div className="w-20 h-20 bg-[#00c4cc]/10 text-[#00c4cc] rounded-full flex items-center justify-center text-3xl mx-auto mb-6">📥</div>
               <h3 className="text-2xl font-bold text-slate-800 mb-2">CSVエクスポート</h3>
               <p className="text-slate-500">
-                <span className="font-bold text-indigo-600">{selectedOffice.name}</span> の評価結果を出力します。
+                <span className="font-bold text-[#00c4cc]">{selectedOffice.name}</span> の評価結果を出力します。
               </p>
             </div>
 
@@ -467,7 +467,7 @@ const AppContent: React.FC = () => {
               <select
                 value={currentExportPeriodId}
                 onChange={(e) => setExportPeriodId(e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#00c4cc] focus:border-[#00c4cc]"
               >
                 {currentMaster?.periods?.map(period => (
                   <option key={period.id} value={period.id}>
@@ -567,7 +567,7 @@ const AppContent: React.FC = () => {
                 URL.revokeObjectURL(url);
               }}
               disabled={exportRecords.length === 0}
-              className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-indigo-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-[#00c4cc] text-white py-4 rounded-xl font-bold hover:bg-[#00a8b0] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               CSVファイルをダウンロード ({exportRecords.length}名)
             </button>
