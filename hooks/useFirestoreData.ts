@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Office,
   Staff,
@@ -92,6 +92,12 @@ export function useFirestoreData(isAuthenticated: boolean): UseFirestoreDataRetu
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 最新のステートを参照するためのrefを使用（セッター関数のclosure問題を解決）
+  const smarthrConfigRef = useRef(smarthrConfig);
+  const departmentMappingsRef = useRef(departmentMappings);
+  const qualificationMappingsRef = useRef(qualificationMappings);
+  const selectedPeriodIdRef = useRef(selectedPeriodId);
+
   // 初期データの読み込み
   const loadData = useCallback(async () => {
     if (!isAuthenticated) {
@@ -141,10 +147,28 @@ export function useFirestoreData(isAuthenticated: boolean): UseFirestoreDataRetu
     if (data.changeLogs) setChangeLogsState(data.changeLogs);
 
     if (data.config) {
-      setSmarthrConfigState(data.config.smarthrConfig || DEFAULT_SMARTHR_CONFIG);
-      setDepartmentMappingsState(data.config.departmentMappings || []);
-      setQualificationMappingsState(data.config.qualificationMappings || []);
-      setSelectedPeriodIdState(data.config.selectedPeriodId || '');
+      const smarthrConf = data.config.smarthrConfig || DEFAULT_SMARTHR_CONFIG;
+      const deptMappings = data.config.departmentMappings || [];
+      const qualMappings = data.config.qualificationMappings || [];
+      const periodId = data.config.selectedPeriodId || '';
+
+      // デバッグ: Firestoreから読み込んだdepartmentMappingsを出力
+      console.log('[Firestore] departmentMappings loaded:', {
+        count: deptMappings.length,
+        data: deptMappings
+      });
+
+      // ステートを更新
+      setSmarthrConfigState(smarthrConf);
+      setDepartmentMappingsState(deptMappings);
+      setQualificationMappingsState(qualMappings);
+      setSelectedPeriodIdState(periodId);
+
+      // Refも同時に更新（セッター関数がすぐに呼ばれても正しい値を使えるように）
+      smarthrConfigRef.current = smarthrConf;
+      departmentMappingsRef.current = deptMappings;
+      qualificationMappingsRef.current = qualMappings;
+      selectedPeriodIdRef.current = periodId;
     }
   };
 
@@ -230,33 +254,51 @@ export function useFirestoreData(isAuthenticated: boolean): UseFirestoreDataRetu
     });
   }, []);
 
+  // refを最新の値で更新（ステート変更時に同期）
+  useEffect(() => {
+    smarthrConfigRef.current = smarthrConfig;
+  }, [smarthrConfig]);
+  useEffect(() => {
+    departmentMappingsRef.current = departmentMappings;
+  }, [departmentMappings]);
+  useEffect(() => {
+    qualificationMappingsRef.current = qualificationMappings;
+  }, [qualificationMappings]);
+  useEffect(() => {
+    selectedPeriodIdRef.current = selectedPeriodId;
+  }, [selectedPeriodId]);
+
   const setSmarthrConfig = useCallback((value: SmartHRConfig | ((prev: SmartHRConfig) => SmartHRConfig)) => {
     setSmarthrConfigState(prev => {
       const newValue = typeof value === 'function' ? value(prev) : value;
-      saveConfigData(newValue, departmentMappings, qualificationMappings, selectedPeriodId).catch(console.error);
+      smarthrConfigRef.current = newValue;
+      saveConfigData(newValue, departmentMappingsRef.current, qualificationMappingsRef.current, selectedPeriodIdRef.current).catch(console.error);
       return newValue;
     });
-  }, [departmentMappings, qualificationMappings, selectedPeriodId, saveConfigData]);
+  }, [saveConfigData]);
 
   const setDepartmentMappings = useCallback((value: DepartmentOfficeMapping[] | ((prev: DepartmentOfficeMapping[]) => DepartmentOfficeMapping[])) => {
     setDepartmentMappingsState(prev => {
       const newValue = typeof value === 'function' ? value(prev) : value;
-      saveConfigData(smarthrConfig, newValue, qualificationMappings, selectedPeriodId).catch(console.error);
+      departmentMappingsRef.current = newValue;
+      saveConfigData(smarthrConfigRef.current, newValue, qualificationMappingsRef.current, selectedPeriodIdRef.current).catch(console.error);
       return newValue;
     });
-  }, [smarthrConfig, qualificationMappings, selectedPeriodId, saveConfigData]);
+  }, [saveConfigData]);
 
   const setQualificationMappings = useCallback((value: QualificationMapping[] | ((prev: QualificationMapping[]) => QualificationMapping[])) => {
     setQualificationMappingsState(prev => {
       const newValue = typeof value === 'function' ? value(prev) : value;
-      saveConfigData(smarthrConfig, departmentMappings, newValue, selectedPeriodId).catch(console.error);
+      qualificationMappingsRef.current = newValue;
+      saveConfigData(smarthrConfigRef.current, departmentMappingsRef.current, newValue, selectedPeriodIdRef.current).catch(console.error);
       return newValue;
     });
-  }, [smarthrConfig, departmentMappings, selectedPeriodId, saveConfigData]);
+  }, [saveConfigData]);
 
   const setSelectedPeriodId = useCallback((value: string) => {
     setSelectedPeriodIdState(value);
-    saveConfigData(smarthrConfig, departmentMappings, qualificationMappings, value).catch(console.error);
+    selectedPeriodIdRef.current = value;
+    saveConfigData(smarthrConfigRef.current, departmentMappingsRef.current, qualificationMappingsRef.current, value).catch(console.error);
   }, [smarthrConfig, departmentMappings, qualificationMappings, saveConfigData]);
 
   // 個別更新関数

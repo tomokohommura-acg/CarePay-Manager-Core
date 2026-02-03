@@ -49,29 +49,95 @@ export const SmartHRSyncDialog: React.FC<SmartHRSyncDialogProps> = ({
   setStaffList,
   memoryToken
 }) => {
-  const [step, setStep] = useState<'loading' | 'preview' | 'syncing' | 'done' | 'error'>('loading');
+  const [step, setStep] = useState<'select_employment' | 'loading' | 'preview' | 'syncing' | 'done' | 'error'>('select_employment');
   const [preview, setPreview] = useState<SmartHRSyncPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncResult, setSyncResult] = useState<{ added: number; updated: number; statusChanged: number } | null>(null);
   const [selectedTab, setSelectedTab] = useState<'add' | 'update' | 'statusChanges' | 'skipped'>('add');
   const [expandedSkipped, setExpandedSkipped] = useState(false);
 
-  // ダイアログが開かれたときにプレビューを取得
+  // 雇用形態選択用
+  const [employmentTypes, setEmploymentTypes] = useState<{ id: string; name: string }[]>([]);
+  const [selectedEmploymentTypes, setSelectedEmploymentTypes] = useState<string[]>(config.employmentTypeFilter);
+  const [loadingEmploymentTypes, setLoadingEmploymentTypes] = useState(false);
+
+  // ダイアログが開かれたときに雇用形態一覧を取得
   useEffect(() => {
     if (isOpen) {
-      loadPreview();
+      loadEmploymentTypes();
     } else {
       // リセット
-      setStep('loading');
+      setStep('select_employment');
       setPreview(null);
       setError(null);
       setSyncResult(null);
+      setSelectedEmploymentTypes(config.employmentTypeFilter);
     }
   }, [isOpen]);
+
+  const loadEmploymentTypes = async () => {
+    const token = memoryToken || (config.accessToken ? deobfuscateToken(config.accessToken) : '');
+    if (!config.subdomain || !token) {
+      setError('SmartHR接続設定が未完了です');
+      setStep('error');
+      return;
+    }
+
+    setLoadingEmploymentTypes(true);
+    try {
+      const service = new SmartHRService(config.subdomain, token);
+      const types = await service.getEmploymentTypes();
+      setEmploymentTypes(types);
+
+      // 「正社員」を初期値として選択（configに設定がない場合）
+      if (config.employmentTypeFilter.length === 0) {
+        const seishain = types.find(t => t.name === '正社員');
+        if (seishain) {
+          setSelectedEmploymentTypes([seishain.id]);
+        }
+      }
+
+      setStep('select_employment');
+    } catch (err) {
+      setError('雇用形態の取得に失敗しました');
+      setStep('error');
+    } finally {
+      setLoadingEmploymentTypes(false);
+    }
+  };
+
+  const toggleEmploymentType = (typeId: string) => {
+    setSelectedEmploymentTypes(prev => {
+      if (prev.includes(typeId)) {
+        return prev.filter(id => id !== typeId);
+      }
+      return [...prev, typeId];
+    });
+  };
+
+  const proceedToPreview = () => {
+    // 選択した雇用形態を保存
+    setConfig(prev => ({ ...prev, employmentTypeFilter: selectedEmploymentTypes }));
+    loadPreview();
+  };
 
   const loadPreview = async () => {
     setStep('loading');
     setError(null);
+
+    // デバッグ: 現在の設定を出力
+    console.log('[SmartHR Sync] 現在の設定:', {
+      subdomain: config.subdomain,
+      hasToken: !!config.accessToken,
+      selectedEmploymentTypes: selectedEmploymentTypes,
+      selectedCount: selectedEmploymentTypes.length,
+      departmentMappingsCount: departmentMappings.length,
+      departmentMappings: departmentMappings,
+      officesWithSmarthrId: offices.filter(o => o.smarthrDepartmentId).map(o => ({
+        name: o.name,
+        smarthrDepartmentId: o.smarthrDepartmentId
+      }))
+    });
 
     const token = memoryToken || (config.accessToken ? deobfuscateToken(config.accessToken) : '');
 
@@ -84,11 +150,20 @@ export const SmartHRSyncDialog: React.FC<SmartHRSyncDialogProps> = ({
     try {
       const service = new SmartHRService(config.subdomain, token);
 
-      // 従業員データとカスタム項目テンプレートを並列取得
-      const [crews, customFieldTemplates] = await Promise.all([
+      // 従業員データ、カスタム項目テンプレート、部署一覧を並列取得
+      const [crews, customFieldTemplates, departments] = await Promise.all([
         service.getAllCrews(),
-        service.getCustomFieldTemplates()
+        service.getCustomFieldTemplates(),
+        service.getDepartments()
       ]);
+
+      // 部署名→部署IDのマッピングを作成（フルパスと名前の両方でマッチできるように）
+      const deptNameToIdMap: Record<string, string> = {};
+      for (const dept of departments) {
+        deptNameToIdMap[dept.name] = dept.id;
+        deptNameToIdMap[dept.full_path_name] = dept.id;
+      }
+      console.log('[SmartHR] 部署名→IDマップ:', deptNameToIdMap);
 
       // カスタム項目テンプレートから、コード→名前の変換マップを作成
       const qualCodeToNameMap: Record<string, string> = {};
@@ -131,13 +206,14 @@ export const SmartHRSyncDialog: React.FC<SmartHRSyncDialogProps> = ({
 
       const previewData = generateSyncPreview(
         crews,
-        config.employmentTypeFilter,
+        selectedEmploymentTypes,
         departmentMappings,
         qualificationMappings,
         offices,
         qualificationMasters,
         staffList,
-        qualCodeToNameMap
+        qualCodeToNameMap,
+        deptNameToIdMap
       );
 
       setPreview(previewData);
@@ -239,6 +315,61 @@ export const SmartHRSyncDialog: React.FC<SmartHRSyncDialogProps> = ({
 
         {/* コンテンツ */}
         <div className="flex-1 overflow-y-auto p-6">
+          {/* 雇用形態選択 */}
+          {step === 'select_employment' && (
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-sm font-bold text-slate-700 mb-3">同期対象の雇用形態を選択</h4>
+                <p className="text-xs text-slate-500 mb-4">
+                  正社員以外の雇用形態も同期する場合は、追加で選択してください。
+                </p>
+                {loadingEmploymentTypes ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {employmentTypes.map(type => (
+                      <button
+                        key={type.id}
+                        onClick={() => toggleEmploymentType(type.id)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                          selectedEmploymentTypes.includes(type.id)
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {type.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {selectedEmploymentTypes.length === 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-xs text-amber-700">
+                    ⚠️ 雇用形態が未選択のため、全ての従業員が同期対象になります
+                  </p>
+                </div>
+              )}
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button
+                  onClick={onClose}
+                  className="px-6 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={proceedToPreview}
+                  disabled={loadingEmploymentTypes}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100 disabled:opacity-50"
+                >
+                  プレビューを表示
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ローディング */}
           {step === 'loading' && (
             <div className="flex flex-col items-center justify-center py-12">
@@ -254,7 +385,7 @@ export const SmartHRSyncDialog: React.FC<SmartHRSyncDialogProps> = ({
               <p className="text-rose-600 font-medium mb-2">エラーが発生しました</p>
               <p className="text-slate-500 text-sm text-center">{error}</p>
               <button
-                onClick={loadPreview}
+                onClick={loadEmploymentTypes}
                 className="mt-6 px-6 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors"
               >
                 再試行
@@ -265,6 +396,29 @@ export const SmartHRSyncDialog: React.FC<SmartHRSyncDialogProps> = ({
           {/* プレビュー */}
           {step === 'preview' && preview && (
             <div className="space-y-6">
+              {/* 選択した雇用形態の表示 */}
+              <div className="flex items-center justify-between bg-slate-50 rounded-xl p-3">
+                <div className="text-sm text-slate-600">
+                  <span className="font-medium">同期対象: </span>
+                  {selectedEmploymentTypes.length === 0 ? (
+                    <span>全ての雇用形態</span>
+                  ) : (
+                    <span>
+                      {employmentTypes
+                        .filter(t => selectedEmploymentTypes.includes(t.id))
+                        .map(t => t.name)
+                        .join('、')}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setStep('select_employment')}
+                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  変更
+                </button>
+              </div>
+
               {/* サマリー */}
               <div className="grid grid-cols-4 gap-3">
                 <button

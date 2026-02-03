@@ -52,6 +52,35 @@ App.tsxで全状態を管理し、Firebase Firestoreに永続化。評価デー�
 - データ管理: `hooks/useFirestoreData.ts`
 - 初回起動時にLocalStorage（キー: `carepay_v2_state`）からFirestoreへ自動移行
 
+**useFirestoreData.tsの実装パターン（重要）:**
+
+複数の設定（smarthrConfig, departmentMappings, qualificationMappings, selectedPeriodId）は`saveConfigData()`で一括保存される。`useCallback`のclosure問題を回避するため、**useRef**で最新のステート値を保持する。
+
+```typescript
+// ステート定義の直後にRefを定義
+const smarthrConfigRef = useRef(smarthrConfig);
+const departmentMappingsRef = useRef(departmentMappings);
+// ...
+
+// useEffectでRefを同期
+useEffect(() => {
+  smarthrConfigRef.current = smarthrConfig;
+}, [smarthrConfig]);
+
+// セッター関数内でRefを参照（古いclosureを回避）
+const setSmarthrConfig = useCallback((value) => {
+  setSmarthrConfigState(prev => {
+    const newValue = typeof value === 'function' ? value(prev) : value;
+    smarthrConfigRef.current = newValue;
+    // 他の設定はRefから最新値を取得
+    saveConfigData(newValue, departmentMappingsRef.current, ...).catch(console.error);
+    return newValue;
+  });
+}, [saveConfigData]);
+```
+
+**注意:** `applyData()`（Firestore初期読み込み時）でもRefを更新すること。そうしないと、読み込み直後のセッター呼び出しで古い初期値が使われてしまう。
+
 ### Key Components
 
 - **StaffInput**: 職員評価入力テーブル（給与計算ロジック内包）
@@ -147,15 +176,63 @@ interface Office {
 ### 同期フロー
 
 ```
-1. SmartHR APIから全従業員を取得（ページネーション対応）
-2. 雇用形態フィルタで対象を絞り込み（デフォルト: 正社員のみ）
-3. 部署→事業所マッピングで振り分け
-4. カスタム項目→資格マッピングで資格を紐付け
+1. SmartHR APIから全従業員・部署一覧・カスタム項目テンプレートを並列取得
+2. 部署名→部署IDのマッピングを作成（名前とフルパスの両方で引けるように）
+3. 雇用形態フィルタで対象を絞り込み（デフォルト: 正社員のみ）
+4. 部署→事業所マッピングで振り分け（部署IDベースでマッチング）
+5. カスタム項目→資格マッピングで資格を紐付け
    - 「資格①」〜「資格⑧」カスタム項目は自動マッピング（名前照合）
-5. 既存職員はemp_code/crewIdで照合して更新
-6. 新規職員は追加（基本給はデフォルト値¥200,000）
-7. マッピング未設定の従業員はスキップ（理由表示）
-8. 退職・雇用形態変更は「ステータス変更」タブで別途表示
+6. 既存職員はemp_code/crewIdで照合して更新
+7. 新規職員は追加（基本給はデフォルト値¥200,000）
+8. マッピング未設定の従業員はスキップ（理由表示）
+9. 退職・雇用形態変更は「ステータス変更」タブで別途表示
+```
+
+### 部署→事業所マッピングの仕組み
+
+マスタ管理画面で事業所にSmartHR部署を紐づけると、`Office.smarthrDepartmentId`に**部署ID（UUID）**が保存される。
+
+**重要な実装詳細:**
+- SmartHR従業員APIから返る`department`フィールドは**文字列（フルパス）**形式（例: `"第2ケアサービス本部/鹿児島Bブロック/訪問介護（鴨池）"`）
+- 一方、事業所には**部署ID（UUID）**が保存されている（例: `"5e47444b-5515-4c3c-8647-c068ce8773ba"`）
+- この不一致を解決するため、同期時にSmartHR部署一覧APIを呼び出し、**部署名→部署ID**のマッピングを作成
+- 従業員の部署名からIDを引き、そのIDで事業所の`smarthrDepartmentId`とマッチング
+
+```typescript
+// SmartHRSyncDialog.tsx - 部署名→IDマップ作成
+const deptNameToIdMap: Record<string, string> = {};
+for (const dept of departments) {
+  deptNameToIdMap[dept.name] = dept.id;           // 名前でも引ける
+  deptNameToIdMap[dept.full_path_name] = dept.id; // フルパスでも引ける
+}
+
+// smarthrService.ts - マッチング処理
+const deptIdFromName = deptNameToIdMap[normalizedDept.name];
+const matchedOffice = offices.find(o => o.smarthrDepartmentId === deptIdFromName);
+```
+
+**注意:** 部署名とIDの対応関係が変わった場合（SmartHR側で部署を削除・再作成など）、マスタ管理画面で事業所の紐づけをやり直す必要がある。
+
+### 雇用形態フィルタ
+
+同期ダイアログで同期対象の雇用形態を選択できる。
+
+**UI仕様:**
+- 「正社員」がデフォルトで選択済み
+- 説明文:「正社員以外の雇用形態も同期する場合は、追加で選択してください。」
+- 複数選択可能（例: 正社員 + パート）
+- 全て未選択の場合は全従業員が対象（警告表示）
+
+**実装:**
+```typescript
+// SmartHRSyncDialog.tsx - 雇用形態取得後に正社員を自動選択
+const types = await service.getEmploymentTypes();
+if (config.employmentTypeFilter.length === 0) {
+  const seishain = types.find(t => t.name === '正社員');
+  if (seishain) {
+    setSelectedEmploymentTypes([seishain.id]);
+  }
+}
 ```
 
 ### 資格の自動マッピング
@@ -539,3 +616,62 @@ GEMINI_API_KEY=your-gemini-api-key
 - [ ] プッシュ通知（評価期間終了リマインダーなど）
 - [ ] バックアップ・リストア機能
 - [ ] Firebase Hostingへの本番デプロイ（`npm run build && firebase deploy --only hosting`）
+
+---
+
+## 既知の問題と修正履歴
+
+### useCallbackとクロージャによるステート上書きバグ（2026-02-03 修正）
+
+#### 問題
+
+`useFirestoreData.ts`の複数のセッター関数（`setSmarthrConfig`, `setDepartmentMappings`, `setQualificationMappings`, `setSelectedPeriodId`）が、Firestoreに設定を保存する際に**クロージャでキャプチャした古いステート値**を使用していた。
+
+#### 発生シナリオ
+
+1. ユーザーがSmartHR設定を保存 → `setSmarthrConfig(newConfig)` が呼ばれる
+2. Firestoreに `saveConfigData(newConfig, departmentMappings, qualificationMappings, selectedPeriodId)` が実行される
+3. Reactのステート更新は**非同期**のため、他のセッター関数が持つ `smarthrConfig` はまだ古い値
+4. 直後に `setSelectedPeriodId` が呼ばれると、古い `smarthrConfig`（空の値）でFirestoreを上書き
+5. 結果：SmartHR設定が消える
+
+#### 問題のあったコード
+
+```typescript
+// 各セッターがクロージャで古い値をキャプチャ
+const setSmarthrConfig = useCallback((value) => {
+  saveConfigData(newValue, departmentMappings, qualificationMappings, selectedPeriodId);
+}, [departmentMappings, qualificationMappings, selectedPeriodId]);
+
+const setSelectedPeriodId = useCallback((value) => {
+  saveConfigData(smarthrConfig, departmentMappings, qualificationMappings, value);
+  // ↑ smarthrConfig は古い値（空）の可能性あり
+}, [smarthrConfig, departmentMappings, qualificationMappings]);
+```
+
+#### 修正方法
+
+`useRef`を使用して常に最新のステート値を参照するように変更。
+
+```typescript
+// refで最新の値を保持
+const smarthrConfigRef = useRef(smarthrConfig);
+useEffect(() => {
+  smarthrConfigRef.current = smarthrConfig;
+}, [smarthrConfig]);
+
+const setSmarthrConfig = useCallback((value) => {
+  smarthrConfigRef.current = newValue;  // 同期的に更新
+  saveConfigData(newValue, departmentMappingsRef.current, qualificationMappingsRef.current, selectedPeriodIdRef.current);
+}, [saveConfigData]);
+
+const setSelectedPeriodId = useCallback((value) => {
+  saveConfigData(smarthrConfigRef.current, ...);  // 常に最新の値を参照
+}, [saveConfigData]);
+```
+
+#### 教訓
+
+- **複数のステートを一緒にFirestoreに保存する場合**、`useCallback`の依存配列に他のステートを含めると、古い値で上書きされる危険がある
+- **`useRef`を使用**して最新の値を同期的に参照することで、競合状態を防げる
+- 特に設定データなど、複数のフィールドを1つのドキュメントにまとめて保存する場合は注意が必要

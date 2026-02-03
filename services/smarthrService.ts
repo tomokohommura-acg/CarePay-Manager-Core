@@ -247,38 +247,102 @@ function normalizeEmploymentType(empType: string | { id?: string; name?: string 
 
 export function transformCrewToStaff(
   crew: SmartHRCrew,
-  departmentMappings: DepartmentOfficeMapping[],
+  _departmentMappings: DepartmentOfficeMapping[], // 後方互換性のため残すが使用しない
   qualificationMappings: QualificationMapping[],
   offices: Office[],
   qualificationMasters: Record<BusinessType, QualificationMaster[]>,
-  qualCodeToNameMap: Record<string, string> = {}
+  qualCodeToNameMap: Record<string, string> = {},
+  deptNameToIdMap: Record<string, string> = {}
 ): { staff: Partial<Staff> | null; officeId: string | null; skipped: boolean; error?: string } {
   // 部署情報を正規化
   const normalizedDept = normalizeDepartment(crew.department);
+
+  // full_path_nameを取得（オブジェクトの場合も対応）
+  const deptFullPath = typeof crew.department === 'string'
+    ? crew.department
+    : (crew.department?.full_path_name || null);
 
   // デバッグログ
   console.log('[SmartHR Debug] crew data:', {
     id: crew.id,
     name: `${crew.last_name} ${crew.first_name}`,
     rawDepartment: crew.department,
-    normalizedDept
+    normalizedDept,
+    deptFullPath
   });
 
   // 部署→事業所のマッピングを検索
   let officeId: string | null = null;
-  if (normalizedDept) {
-    // 文字列の場合、normalizedDept.idにはフルパスが入っている
-    const deptFullPath = typeof crew.department === 'string' ? crew.department : null;
+  let matchedOffice: Office | undefined = undefined;
 
-    // ID、名前、フルパスでマッピングを検索
-    const mapping = departmentMappings.find(m =>
-      m.smarthrDepartmentId === normalizedDept.id ||
-      m.smarthrDepartmentName === normalizedDept.name ||
-      (deptFullPath && m.smarthrDepartmentFullPath === deptFullPath) ||
-      (deptFullPath && m.smarthrDepartmentName === deptFullPath)  // 後方互換性
-    );
-    if (mapping) {
-      officeId = mapping.officeId;
+  if (normalizedDept) {
+    // 部署名からIDを取得（deptNameToIdMapを使用）
+    const deptIdFromName = deptNameToIdMap[normalizedDept.name] || null;
+    const deptIdFromFullPath = deptFullPath ? deptNameToIdMap[deptFullPath] : null;
+    const resolvedDeptId = deptIdFromName || deptIdFromFullPath;
+
+    // デバッグ: 事業所のsmarthrDepartmentId一覧を出力
+    console.log('[SmartHR Debug] offices smarthrDepartmentId:', offices.map(o => ({
+      name: o.name,
+      smarthrDepartmentId: o.smarthrDepartmentId
+    })));
+    console.log('[SmartHR Debug] 比較対象:', {
+      normalizedDeptName: normalizedDept.name,
+      deptFullPath,
+      deptIdFromName,
+      deptIdFromFullPath,
+      resolvedDeptId
+    });
+
+    // 方法1: 部署IDで事業所をマッチング
+    if (resolvedDeptId) {
+      matchedOffice = offices.find(o => o.smarthrDepartmentId === resolvedDeptId);
+    }
+
+    // 方法2: 名前やフルパスで直接マッチング（フォールバック）
+    if (!matchedOffice) {
+      matchedOffice = offices.find(o => {
+        if (!o.smarthrDepartmentId) return false;
+        const smarthrId = o.smarthrDepartmentId;
+        // 完全一致
+        if (smarthrId === normalizedDept.id || smarthrId === normalizedDept.name) return true;
+        if (deptFullPath && smarthrId === deptFullPath) return true;
+        // 部分一致: フルパスが事業所の部署名で終わるか
+        if (deptFullPath && deptFullPath.endsWith(smarthrId)) return true;
+        // 部分一致: 事業所の部署名がフルパスに含まれるか
+        if (deptFullPath && deptFullPath.includes(smarthrId)) return true;
+        return false;
+      });
+    }
+
+    if (matchedOffice) {
+      officeId = matchedOffice.id;
+      console.log('[SmartHR] ✅ マッチ成功:', matchedOffice.name, '(部署:', normalizedDept.name, ', ID:', resolvedDeptId, ')');
+    } else {
+      // 方法2: departmentMappingsでマッチング（後方互換性）
+      console.log('[SmartHR Debug] departmentMappings照合:', {
+        normalizedDeptId: normalizedDept.id,
+        normalizedDeptName: normalizedDept.name,
+        deptFullPath,
+        mappingsCount: _departmentMappings.length,
+        mappings: _departmentMappings.map(m => ({
+          id: m.smarthrDepartmentId,
+          name: m.smarthrDepartmentName,
+          fullPath: m.smarthrDepartmentFullPath,
+          officeId: m.officeId
+        }))
+      });
+
+      const mapping = _departmentMappings.find(m =>
+        m.smarthrDepartmentId === normalizedDept.id ||
+        m.smarthrDepartmentName === normalizedDept.name ||
+        (deptFullPath && m.smarthrDepartmentFullPath === deptFullPath) ||
+        (deptFullPath && m.smarthrDepartmentName === deptFullPath)
+      );
+      if (mapping) {
+        officeId = mapping.officeId;
+        console.log('[SmartHR] ✅ departmentMappingsでマッチ:', mapping.smarthrDepartmentName, '→', mapping.officeId);
+      }
     }
   }
 
@@ -288,13 +352,13 @@ export function transformCrewToStaff(
       officeId: null,
       skipped: true,
       error: normalizedDept
-        ? `部署「${normalizedDept.name}」のマッピングが未設定`
+        ? `部署「${deptFullPath || normalizedDept.name}」のマッピングが未設定`
         : '部署が未設定'
     };
   }
 
   // 事業所の業種を取得
-  const office = offices.find(o => o.id === officeId);
+  const office = matchedOffice || offices.find(o => o.id === officeId);
   if (!office) {
     return { staff: null, officeId: null, skipped: true, error: 'マッピング先の事業所が存在しません' };
   }
@@ -434,7 +498,8 @@ export function generateSyncPreview(
   offices: Office[],
   qualificationMasters: Record<BusinessType, QualificationMaster[]>,
   existingStaff: Staff[],
-  qualCodeToNameMap: Record<string, string> = {}
+  qualCodeToNameMap: Record<string, string> = {},
+  deptNameToIdMap: Record<string, string> = {}
 ): SmartHRSyncPreview {
   const toAdd: SmartHRSyncItem[] = [];
   const toUpdate: SmartHRSyncItem[] = [];
@@ -528,7 +593,8 @@ export function generateSyncPreview(
       qualificationMappings,
       offices,
       qualificationMasters,
-      qualCodeToNameMap
+      qualCodeToNameMap,
+      deptNameToIdMap
     );
 
     if (result.skipped || !result.staff || !result.officeId) {

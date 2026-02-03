@@ -51,6 +51,19 @@ export const SmartHRSettings: React.FC<SmartHRSettingsProps> = ({
   const [smarthrCustomFieldTemplates, setSmarthrCustomFieldTemplates] = useState<any[]>([]);
   const [isLoadingMeta, setIsLoadingMeta] = useState(false);
 
+  // 設定が保存済みの場合、初回読み込み時に雇用形態を自動取得
+  useEffect(() => {
+    if (config.subdomain && config.accessToken) {
+      const token = deobfuscateToken(config.accessToken);
+      if (token) {
+        const service = new SmartHRService(config.subdomain, token);
+        service.getEmploymentTypes().then(empTypes => {
+          setSmarthrEmploymentTypes(empTypes);
+        }).catch(console.error);
+      }
+    }
+  }, []);
+
   // 設定保存
   const handleSaveConfig = () => {
     setConfig({
@@ -77,6 +90,8 @@ export const SmartHRSettings: React.FC<SmartHRSettingsProps> = ({
       const service = new SmartHRService(subdomain, accessToken);
       await service.testConnection();
       setTestResult({ success: true, message: '接続に成功しました' });
+      // 接続成功後、雇用形態一覧を自動取得
+      loadSmartHRMetadata();
     } catch (error) {
       if (error instanceof SmartHRApiError) {
         setTestResult({ success: false, message: error.message });
