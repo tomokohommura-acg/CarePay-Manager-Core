@@ -37,6 +37,7 @@ export const Layout: React.FC<LayoutProps> = ({
   isAdmin = false,
   canEdit = false
 }) => {
+  const isAllOfficesSelected = selectedOfficeId === 'all';
   const selectedOffice = offices.find(o => o.id === selectedOfficeId);
   const [filterType, setFilterType] = useState<BusinessType>(selectedOffice?.type || BusinessType.HOME_CARE);
 
@@ -160,10 +161,21 @@ export const Layout: React.FC<LayoutProps> = ({
         <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 py-4 sticky top-0 z-10 shadow-sm flex justify-between items-center">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${selectedOffice?.type === BusinessType.HOME_CARE ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
-                {selectedOffice?.type === BusinessType.HOME_CARE ? '訪問介護' : '訪問看護'}
-              </span>
-              <h2 className="text-xl font-bold text-slate-800">{selectedOffice?.name}</h2>
+              {isAllOfficesSelected ? (
+                <>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-600">
+                    全事業所
+                  </span>
+                  <h2 className="text-xl font-bold text-slate-800">📊 全事業所表示</h2>
+                </>
+              ) : (
+                <>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${selectedOffice?.type === BusinessType.HOME_CARE ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                    {selectedOffice?.type === BusinessType.HOME_CARE ? '訪問介護' : '訪問看護'}
+                  </span>
+                  <h2 className="text-xl font-bold text-slate-800">{selectedOffice?.name}</h2>
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-6">

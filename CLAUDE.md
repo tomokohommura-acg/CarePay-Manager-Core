@@ -9,6 +9,8 @@ npm install          # Install dependencies
 npm run dev          # Start development server on port 3000
 npm run build        # Build for production (outputs to dist/)
 npm run preview      # Preview production build locally
+npm run test         # Run unit tests in watch mode
+npm run test:run     # Run unit tests once
 ```
 
 ## Deployment
@@ -770,6 +772,16 @@ GEMINI_API_KEY=your-gemini-api-key
 - [x] 在籍中フィルタボタンの色を`#3dcc65`に変更
 - [x] デモモード実装（`?demo=true`でログイン不要で動作確認可能）
 
+#### 2026-02-04 テスト実装
+- [x] Vitestセットアップ（vite.config.ts, tests/setup.ts）
+- [x] ユニットテスト: 全83テスト合格
+  - `salaryUtils.ts`（16テスト）: 基本給取得・操作ロジック
+  - `smarthrService.ts`（18テスト）: トークン難読化、データ変換、同期処理
+  - 権限判定ロジック（18テスト）: AuthContext相当の権限判定関数
+  - `demoData.ts`（31テスト）: デモデータの整合性・構造検証
+- [x] E2Eテスト: Playwright MCPによるデモモードテスト（全項目合格）
+- [x] 不具合修正: 全事業所モードでの評価データ入力・ヘッダー表示
+
 ---
 
 ## デモモード（2026-02-04 実装）
@@ -808,6 +820,211 @@ https://visit-care-salary.web.app?demo=true
 | `utils/demoData.ts` | デモ用サンプルデータ定義 |
 | `App.tsx` | デモモード判定・データ切り替えロジック |
 | `E2E_TEST_HANDOVER.md` | E2Eテスト引継ぎドキュメント |
+
+---
+
+## テスト（2026-02-04 実装）
+
+### 概要
+
+ユニットテスト（Vitest）とE2Eテスト（Playwright MCP）の2種類のテストを実施。
+
+### ユニットテスト
+
+#### セットアップ
+
+```bash
+# テスト実行（watch mode）
+npm run test
+
+# テスト実行（1回のみ）
+npm run test:run
+```
+
+#### 設定ファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `vite.config.ts` | Vitest設定（globals: true, jsdom環境） |
+| `tests/setup.ts` | テストセットアップ（@testing-library/jest-dom） |
+
+#### テストファイル
+
+| ファイル | テスト対象 | テスト数 |
+|---------|----------|---------|
+| `tests/salaryUtils.test.ts` | `utils/salaryUtils.ts` | 16 |
+| `tests/smarthrService.test.ts` | `services/smarthrService.ts` | 18 |
+| `tests/authPermissions.test.ts` | 権限判定ロジック（AuthContext相当） | 18 |
+| `tests/demoData.test.ts` | `utils/demoData.ts` | 31 |
+| `tests/components/Layout.test.tsx` | `components/Layout.tsx` | 26 |
+| `tests/components/StaffManager.test.tsx` | `components/StaffManager.tsx` | 22 |
+| `tests/components/BaseSalaryHistoryEditor.test.tsx` | `components/BaseSalaryHistoryEditor.tsx` | 19 |
+
+**合計: 150テスト（7ファイル）**
+
+#### salaryUtils.test.ts のテストケース
+
+| 関数 | テストケース |
+|-----|------------|
+| `getEffectiveBaseSalary` | 履歴がない場合、空配列の場合、評価期間に適用される最新の改定を返す、同一月に複数の改定がある場合createdAt最新を返す、適用可能な改定がない場合 |
+| `addBaseSalaryRevision` | 新しい改定を追加、既存履歴に追加 |
+| `removeBaseSalaryRevision` | 指定した改定を削除、存在しないIDを削除しようとしても何も起きない |
+| `updateBaseSalaryRevision` | 指定した改定を更新 |
+| `migrateStaffBaseSalary` | 履歴がない場合初期履歴を作成、既に履歴がある場合は何もしない、enteredAtがない場合はデフォルト値を使用 |
+| `sortHistoryByEffectiveMonth` | 適用月順（古い順）にソート、同一月はcreatedAt順にソート |
+| `formatMonth` | YYYY-MM形式をYYYY年MM月形式に変換 |
+
+#### smarthrService.test.ts のテストケース
+
+| 関数/クラス | テストケース |
+|------------|------------|
+| `obfuscateToken/deobfuscateToken` | 難読化と復元、空文字列、長いトークン、無効な入力 |
+| `SmartHRApiError` | ステータスコードとメッセージ |
+| `transformCrewToStaff` | 部署マッピング成功、未設定でスキップ、部署未設定でスキップ、資格カスタム項目マッピング、文字列形式の部署 |
+| `generateSyncPreview` | 新規追加、既存更新、雇用形態フィルタ、退職済みスキップ、既存退職のステータス変更 |
+| `executeSyncItems` | 新規追加、既存更新、更新モードで新規追加しない |
+
+#### authPermissions.test.ts のテストケース
+
+| 関数 | テストケース |
+|-----|------------|
+| `getOfficePermission` | null時、管理者、一般ユーザー（officePermissions）、空配列、未設定、後方互換（allowedOfficeIds） |
+| `canAccessOffice` | アクセス権限あり/なし、null時 |
+| `canEditOffice` | 編集権限のみtrue、管理者は全事業所 |
+| `canViewOffice` | 閲覧/編集権限でtrue |
+| `getAllowedOfficeIds` | null時、管理者、officePermissionsから取得、空配列、旧形式 |
+| 複合テスト | 管理者と一般ユーザーの権限差、新形式と旧形式の優先順位 |
+
+#### demoData.test.ts のテストケース
+
+| カテゴリ | テストケース |
+|---------|------------|
+| `demoUser` | 管理者権限、必須フィールド |
+| `demoOffices` | 訪問介護/訪問看護の事業所、固有ID |
+| `demoStaffList` | 職員数、必須フィールド、基本給履歴、時系列順、事業所紐づけ、両業種に職員 |
+| `demoMasters` | 業種ごとのマスタ、資格/勤怠/業績/評価期間マスタ、ステータス |
+| `demoEvaluationRecords` | レコード存在、キー形式、必須フィールド |
+| `demoInputs` | 入力存在、キー形式、勤怠/業績入力 |
+| `demoHistory` | 履歴存在、必須フィールド、事業所紐づけ |
+| データ整合性 | 職員資格→マスタ、レコード→スタッフ、入力→スタッフ、勤怠ID→マスタ、業績ID→マスタ |
+
+#### Layout.test.tsx のテストケース
+
+| カテゴリ | テストケース |
+|---------|------------|
+| 初期表示 | アプリタイトル表示、子要素表示、給与反映期間表示 |
+| メニュー表示 | 評価管理グループ、データ管理グループ、システム設定グループ（管理者のみ） |
+| タブ切り替え | タブクリックでsetActiveTab呼び出し、選択中タブのハイライト |
+| 業態カテゴリ切り替え | セレクトボックス表示、訪問介護/訪問看護選択肢、業態変更で事業所フィルタ |
+| 事業所切り替え | 事業所ボタン表示、クリックでsetSelectedOfficeId、選択中のハイライト |
+| 全事業所表示 | 管理者のみ表示、クリックで"all"、ヘッダーに「全事業所表示」 |
+| ユーザー情報表示 | ユーザー名、管理者/一般バッジ、ログアウトボタン |
+| ヘッダー表示 | 選択中事業所名、訪問介護バッジ |
+
+#### StaffManager.test.tsx のテストケース
+
+| カテゴリ | テストケース |
+|---------|------------|
+| 初期表示 | タイトル表示、職員一覧テーブル、基本給表示、新規登録ボタン |
+| 職員追加 | 新規職員追加ボタンでsetStaffList呼び出し |
+| 職員削除 | 削除確認モーダル、キャンセル、削除実行 |
+| 職員情報編集 | 名前編集でsetStaffList呼び出し |
+| 資格選択 | 資格ボタン表示、選択中★マーク、クリックで選択状態変更 |
+| 未設定フィルター | 警告バナー表示、フィルター切り替え、フィルター時の表示 |
+| SmartHR連携 | 同期ボタン表示、未設定時は無効、クリックでコールバック |
+| 編集権限 | canEdit=falseで入力無効、給与管理ボタン非表示 |
+| 給与管理モーダル | ボタンクリックでモーダル開く |
+| 退職者表示 | 退職者の半透明表示 |
+
+#### BaseSalaryHistoryEditor.test.tsx のテストケース
+
+| カテゴリ | テストケース |
+|---------|------------|
+| 初期表示 | モーダルタイトル、職員名、現在の基本給、改定履歴、履歴件数、メモ表示 |
+| 履歴なし | 「改定履歴はまだありません」表示 |
+| 改定追加 | 追加ボタン表示、フォーム表示、キャンセル、有効値で追加、無効値でボタン無効 |
+| 改定削除 | 削除確認モーダル、キャンセル、削除実行 |
+| 保存とキャンセル | 保存でonSave呼び出し、キャンセルでonClose、背景クリックでonClose |
+| 変更後の保存 | 追加後に保存で更新データが渡される |
+
+### E2Eテスト
+
+#### 実施方法
+
+Playwright MCPを使用してデモモード（`?demo=true`）で手動実行。
+
+#### 実施結果（2026-02-04）
+
+| カテゴリ | テスト項目 | 結果 |
+|---------|----------|------|
+| **初期表示** | デモモードアクセス | ✅ |
+| | デモモードバナー表示 | ✅ |
+| | 訪問介護タブがデフォルト選択 | ✅ |
+| | デモ事業所Aがデフォルト選択 | ✅ |
+| **メニュー遷移** | 職員名簿→評価データ入力簿→評価履歴→職員分析→CSV出力 | ✅ |
+| | マスタ管理→SmartHR連携→ユーザー管理（管理者メニュー） | ✅ |
+| **事業所切り替え** | 訪問介護→訪問看護切り替え | ✅ |
+| | デモ事業所A→デモ事業所B切り替え | ✅ |
+| | ヘッダー表示更新確認 | ✅ |
+| **全事業所表示** | 全事業所ボタン表示（管理者のみ） | ✅ |
+| | 全事業所モードでヘッダー表示「📊 全事業所表示」 | ✅ |
+| | 評価データ入力簿で事業所選択を促すメッセージ表示 | ✅ |
+| | 職員分析で全事業所の職員が選択可能 | ✅ |
+| **職員名簿CRUD** | 職員一覧表示 | ✅ |
+| | 職員追加ボタン表示 | ✅ |
+| | 給与管理ボタン表示 | ✅ |
+| **評価データ入力** | 評価テーブル表示 | ✅ |
+| | 入力フィールドの存在確認 | ✅ |
+| **職員分析** | 職員選択プルダウン表示 | ✅ |
+| | 表示切り替えボタン（📋表/📊棒/📈線）動作 | ✅ |
+| | グラフ⇔テーブル切り替え | ✅ |
+| **CSV出力** | 評価期間選択プルダウン表示 | ✅ |
+| | CSVダウンロードボタン表示 | ✅ |
+| **マスタ管理** | 資格マスタ・勤怠条件・業績評価・評価期間タブ表示 | ✅ |
+| | 事業所設定表示 | ✅ |
+
+#### 発見・修正した不具合
+
+| 不具合 | 対応 |
+|-------|------|
+| 全事業所モードで評価データ入力が空白表示 | 事業所選択を促すメッセージを表示するように修正 |
+| 全事業所モードでヘッダーが空白 | 「📊 全事業所表示」を表示するように修正 |
+
+#### 修正ファイル
+
+- `App.tsx`: 全事業所モードで評価データ入力に案内メッセージを表示
+- `components/Layout.tsx`: 全事業所モード時のヘッダー表示を追加
+
+### テスト関連ファイル構成
+
+```
+tests/
+├── setup.ts                                 # テストセットアップ（jest-dom）
+├── mocks/
+│   └── firebase.ts                          # Firebase/Firestoreモック
+├── utils/
+│   └── testUtils.tsx                        # テストユーティリティ（ヘルパー関数）
+├── salaryUtils.test.ts                      # 基本給ユーティリティ（16テスト）
+├── smarthrService.test.ts                   # SmartHR連携サービス（18テスト）
+├── authPermissions.test.ts                  # 権限判定ロジック（18テスト）
+├── demoData.test.ts                         # デモデータ整合性（31テスト）
+├── components/
+│   ├── Layout.test.tsx                      # Layoutコンポーネント（26テスト）
+│   ├── StaffManager.test.tsx                # StaffManagerコンポーネント（22テスト）
+│   └── BaseSalaryHistoryEditor.test.tsx     # BaseSalaryHistoryEditor（19テスト）
+└── e2e/
+    └── demo-mode.spec.ts                    # Playwright E2Eテスト（手動実行）
+```
+
+### テストユーティリティ（tests/utils/testUtils.tsx）
+
+| ヘルパー関数 | 用途 |
+|------------|------|
+| `createTestMasterData()` | テスト用MasterDataオブジェクト生成 |
+| `createTestStaff()` | テスト用Staffオブジェクト生成 |
+| `createTestOffice()` | テスト用Officeオブジェクト生成 |
+| `createTestUser()` | テスト用AppUserオブジェクト生成 |
+| カスタム`render()` | Reactコンポーネントをモック付きでレンダリング |
 
 ---
 

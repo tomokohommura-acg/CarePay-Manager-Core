@@ -416,18 +416,32 @@ const AppContent: React.FC = () => {
       )}
 
       {activeTab === 'staff' && (
-        <StaffInput
-          records={currentEvaluationRecords}
-          master={currentMaster}
-          inputs={inputs}
-          selectedPeriodId={selectedPeriodId}
-          onPeriodChange={setSelectedPeriodId}
-          onInputChange={handleLocalInputChange}
-          onSaveHistory={handleSaveToHistory}
-          onSync={syncStaffFromMaster}
-          onOpenDashboard={(id) => setViewingStaffId(id)}
-          canEdit={canEditCurrentOffice}
-        />
+        isAllOfficesSelected ? (
+          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+            <div className="text-6xl mb-4">🏢</div>
+            <h3 className="text-xl font-bold text-slate-700 mb-2">事業所を選択してください</h3>
+            <p className="text-slate-500">
+              評価データ入力簿は事業所ごとのマスタ設定を使用するため、<br />
+              「全事業所」モードでは表示できません。
+            </p>
+            <p className="text-slate-400 text-sm mt-4">
+              サイドバーから特定の事業所を選択してください。
+            </p>
+          </div>
+        ) : (
+          <StaffInput
+            records={currentEvaluationRecords}
+            master={currentMaster}
+            inputs={inputs}
+            selectedPeriodId={selectedPeriodId}
+            onPeriodChange={setSelectedPeriodId}
+            onInputChange={handleLocalInputChange}
+            onSaveHistory={handleSaveToHistory}
+            onSync={syncStaffFromMaster}
+            onOpenDashboard={(id) => setViewingStaffId(id)}
+            canEdit={canEditCurrentOffice}
+          />
+        )
       )}
 
       {activeTab === 'staff_list' && (
