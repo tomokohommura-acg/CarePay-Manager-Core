@@ -46,7 +46,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, setHistory, c
           onClick={() => setActiveTab('history')}
           className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
             activeTab === 'history'
-              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+              ? 'bg-[#26519f] text-white shadow-lg shadow-blue-100'
               : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
           }`}
         >
@@ -56,7 +56,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, setHistory, c
           onClick={() => setActiveTab('changelog')}
           className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
             activeTab === 'changelog'
-              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+              ? 'bg-[#26519f] text-white shadow-lg shadow-blue-100'
               : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
           }`}
         >
@@ -79,11 +79,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, setHistory, c
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {history.map(entry => (
-                <div key={entry.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:border-indigo-300 transition-all group">
+                <div key={entry.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:border-[#26519f]/40 transition-all group">
                   <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest">保存日時: {entry.timestamp}</span>
+                        <span className="bg-[#26519f]/10 text-[#26519f] text-[10px] font-black px-2 py-1 rounded uppercase tracking-widest">保存日時: {entry.timestamp}</span>
                         <h4 className="font-bold text-slate-800 text-lg">{entry.officeName}</h4>
                       </div>
                       <div className="flex gap-8">
@@ -92,8 +92,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, setHistory, c
                           <span className="text-sm font-medium text-slate-600">{entry.period.evaluationStart} 〜 {entry.period.evaluationEnd}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-indigo-400 font-bold uppercase block">反映期間</span>
-                          <span className="text-sm font-bold text-indigo-600">{entry.period.paymentStart} 〜 {entry.period.paymentEnd}</span>
+                          <span className="text-[10px] text-[#26519f]/70 font-bold uppercase block">反映期間</span>
+                          <span className="text-sm font-bold text-[#26519f]">{entry.period.paymentStart} 〜 {entry.period.paymentEnd}</span>
                         </div>
                       </div>
                     </div>
@@ -137,7 +137,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ history, setHistory, c
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-bold text-slate-700">{formatTimestamp(log.timestamp)}</span>
-                        <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded-full">
+                        <span className="bg-[#26519f]/10 text-[#26519f] text-xs font-bold px-2 py-1 rounded-full">
                           {log.userName}
                         </span>
                         <span className="text-sm text-slate-500">{log.periodName}</span>

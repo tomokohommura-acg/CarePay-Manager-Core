@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Layout, TabType } from './components/Layout';
 import { LoginPage } from './components/LoginPage';
 import { MasterManager } from './components/MasterManager';
@@ -13,45 +13,107 @@ import { StaffAnalytics } from './components/StaffAnalytics';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useFirestoreData } from './hooks/useFirestoreData';
 import { BusinessType, MasterData, StaffUpdateData, HistoryEntry, EvaluationRecord, ChangeLogEntry, ChangeDetail } from './types';
+import {
+  demoUser,
+  demoOffices,
+  demoStaffList,
+  demoMasters,
+  demoEvaluationRecords,
+  demoInputs,
+  demoHistory
+} from './utils/demoData';
+
+// デモモードかどうかを判定
+const isDemoMode = () => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('demo') === 'true';
+};
 
 const AppContent: React.FC = () => {
-  const { appUser, loading: authLoading, logout, isAdmin, canAccessOffice, canEditOffice } = useAuth();
-  const isAuthenticated = !!appUser;
+  const demoMode = useMemo(() => isDemoMode(), []);
+  const { appUser: realAppUser, loading: authLoading, logout: realLogout, isAdmin: realIsAdmin, canAccessOffice: realCanAccessOffice, canEditOffice: realCanEditOffice } = useAuth();
+
+  // デモモード用のステート
+  const [demoOfficesState, setDemoOfficesState] = useState(demoOffices);
+  const [demoStaffListState, setDemoStaffListState] = useState(demoStaffList);
+  const [demoMastersState, setDemoMastersState] = useState(demoMasters);
+  const [demoEvaluationRecordsState, setDemoEvaluationRecordsState] = useState(demoEvaluationRecords);
+  const [demoInputsState, setDemoInputsState] = useState(demoInputs);
+  const [demoHistoryState, setDemoHistoryState] = useState(demoHistory);
+  const [demoSelectedPeriodId, setDemoSelectedPeriodId] = useState('period-002');
+
+  // デモモードか本番モードかで切り替え
+  const appUser = demoMode ? demoUser : realAppUser;
+  const isAuthenticated = demoMode ? true : !!realAppUser;
+  const logout = demoMode ? () => { window.location.href = '/'; } : realLogout;
+  const isAdmin = demoMode ? true : realIsAdmin;
+  const canAccessOffice = demoMode ? () => true : realCanAccessOffice;
+  const canEditOffice = demoMode ? () => true : realCanEditOffice;
 
   const {
-    offices,
-    staffList,
-    masters,
-    evaluationRecords,
-    inputs,
-    history,
+    offices: firestoreOffices,
+    staffList: firestoreStaffList,
+    masters: firestoreMasters,
+    evaluationRecords: firestoreEvaluationRecords,
+    inputs: firestoreInputs,
+    history: firestoreHistory,
     changeLogs,
     smarthrConfig,
     departmentMappings,
     qualificationMappings,
-    selectedPeriodId,
+    selectedPeriodId: firestoreSelectedPeriodId,
     loading: dataLoading,
-    setOffices,
-    setStaffList,
-    setMasters,
-    setEvaluationRecords,
-    setInputs,
-    setHistory,
+    setOffices: setFirestoreOffices,
+    setStaffList: setFirestoreStaffList,
+    setMasters: setFirestoreMasters,
+    setEvaluationRecords: setFirestoreEvaluationRecords,
+    setInputs: setFirestoreInputs,
+    setHistory: setFirestoreHistory,
     setSmarthrConfig,
     setDepartmentMappings,
     setQualificationMappings,
-    setSelectedPeriodId,
-    handleInputChange,
-    handleAddHistoryEntry,
+    setSelectedPeriodId: setFirestoreSelectedPeriodId,
+    handleInputChange: firestoreHandleInputChange,
+    handleAddHistoryEntry: firestoreHandleAddHistoryEntry,
     handleAddChangeLog
-  } = useFirestoreData(isAuthenticated);
+  } = useFirestoreData(demoMode ? false : isAuthenticated);
+
+  // デモモードか本番モードかでデータを切り替え
+  const offices = demoMode ? demoOfficesState : firestoreOffices;
+  const staffList = demoMode ? demoStaffListState : firestoreStaffList;
+  const masters = demoMode ? demoMastersState : firestoreMasters;
+  const evaluationRecords = demoMode ? demoEvaluationRecordsState : firestoreEvaluationRecords;
+  const inputs = demoMode ? demoInputsState : firestoreInputs;
+  const history = demoMode ? demoHistoryState : firestoreHistory;
+  const selectedPeriodId = demoMode ? demoSelectedPeriodId : firestoreSelectedPeriodId;
+
+  const setOffices = demoMode ? setDemoOfficesState : setFirestoreOffices;
+  const setStaffList = demoMode ? setDemoStaffListState : setFirestoreStaffList;
+  const setMasters = demoMode ? setDemoMastersState : setFirestoreMasters;
+  const setEvaluationRecords = demoMode ? setDemoEvaluationRecordsState : setFirestoreEvaluationRecords;
+  const setInputs = demoMode ? setDemoInputsState : setFirestoreInputs;
+  const setHistory = demoMode ? setDemoHistoryState : setFirestoreHistory;
+  const setSelectedPeriodId = demoMode ? setDemoSelectedPeriodId : setFirestoreSelectedPeriodId;
+
+  const handleInputChange = demoMode
+    ? (data: StaffUpdateData) => {
+        const key = `${data.periodId}_${data.staffId}`;
+        setDemoInputsState(prev => ({ ...prev, [key]: data }));
+      }
+    : firestoreHandleInputChange;
+
+  const handleAddHistoryEntry = demoMode
+    ? (entry: HistoryEntry) => {
+        setDemoHistoryState(prev => [entry, ...prev]);
+      }
+    : firestoreHandleAddHistoryEntry;
 
   const [activeTab, setActiveTab] = useState<TabType>('staff');
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>('');
   const [exportPeriodId, setExportPeriodId] = useState<string>('');
 
-  // アクセス可能な事業所のみをフィルタリング
-  const accessibleOffices = offices.filter(o => canAccessOffice(o.id));
+  // アクセス可能な事業所のみをフィルタリング（デモモードでは全事業所）
+  const accessibleOffices = demoMode ? offices : offices.filter(o => canAccessOffice(o.id));
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [showUnconfiguredOnly, setShowUnconfiguredOnly] = useState(false);
   const [viewingStaffId, setViewingStaffId] = useState<string | null>(null);
@@ -77,8 +139,8 @@ const AppContent: React.FC = () => {
     }
   }, [selectedOfficeId, masters, accessibleOffices, selectedPeriodId, setSelectedPeriodId]);
 
-  // 認証ローディング中
-  if (authLoading) {
+  // 認証ローディング中（デモモードではスキップ）
+  if (!demoMode && authLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
@@ -89,13 +151,13 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // 未認証時はログイン画面
-  if (!isAuthenticated) {
+  // 未認証時はログイン画面（デモモードではスキップ）
+  if (!demoMode && !isAuthenticated) {
     return <LoginPage />;
   }
 
-  // データローディング中
-  if (dataLoading) {
+  // データローディング中（デモモードではスキップ）
+  if (!demoMode && dataLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
@@ -322,6 +384,15 @@ const AppContent: React.FC = () => {
   };
 
   return (
+    <>
+      {/* デモモードバナー */}
+      {demoMode && (
+        <div className="bg-amber-500 text-white text-center py-2 px-4 text-sm font-bold fixed top-0 left-0 right-0 z-50">
+          デモモード - サンプルデータで動作中（データは保存されません）
+          <a href="/" className="ml-4 underline hover:no-underline">通常モードへ</a>
+        </div>
+      )}
+      <div className={demoMode ? 'pt-10' : ''}>
     <Layout
       activeTab={activeTab}
       setActiveTab={setActiveTab}
@@ -575,6 +646,8 @@ const AppContent: React.FC = () => {
         );
       })()}
     </Layout>
+      </div>
+    </>
   );
 };
 

@@ -86,7 +86,7 @@ export const Layout: React.FC<LayoutProps> = ({
                   onClick={() => setSelectedOfficeId('all')}
                   className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center justify-between ${
                     selectedOfficeId === 'all'
-                    ? 'bg-[#00c4cc] text-white shadow-md'
+                    ? 'bg-[#00c4cc]/20 text-[#00a8b0] font-semibold'
                     : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
@@ -99,7 +99,7 @@ export const Layout: React.FC<LayoutProps> = ({
                   onClick={() => setSelectedOfficeId(office.id)}
                   className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center justify-between ${
                     selectedOfficeId === office.id
-                    ? 'bg-[#00c4cc] text-white shadow-md'
+                    ? 'bg-[#00c4cc]/20 text-[#00a8b0] font-semibold'
                     : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
@@ -114,10 +114,10 @@ export const Layout: React.FC<LayoutProps> = ({
             <div className="px-3 py-2 mb-1">
               <span className="text-base font-bold text-[#00c4cc]">📋 評価管理</span>
             </div>
-            <button onClick={() => setActiveTab('staff_list')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'staff_list' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <button onClick={() => setActiveTab('staff_list')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'staff_list' ? 'bg-[#00c4cc]/20 text-[#00a8b0] font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
               👥 職員名簿
             </button>
-            <button onClick={() => setActiveTab('staff')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'staff' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <button onClick={() => setActiveTab('staff')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'staff' ? 'bg-[#00c4cc]/20 text-[#00a8b0] font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
               📊 評価データ入力簿
             </button>
 
@@ -125,13 +125,13 @@ export const Layout: React.FC<LayoutProps> = ({
             <div className="px-3 py-2 mt-5 mb-1 border-t-2 border-slate-200 pt-4">
               <span className="text-base font-bold text-[#00c4cc]">📁 データ管理</span>
             </div>
-            <button onClick={() => setActiveTab('history')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <button onClick={() => setActiveTab('history')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'history' ? 'bg-[#00c4cc]/20 text-[#00a8b0] font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
               📋 評価履歴
             </button>
-            <button onClick={() => setActiveTab('analytics')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'analytics' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <button onClick={() => setActiveTab('analytics')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'analytics' ? 'bg-[#00c4cc]/20 text-[#00a8b0] font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
               📈 職員分析
             </button>
-            <button onClick={() => setActiveTab('export')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'export' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <button onClick={() => setActiveTab('export')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'export' ? 'bg-[#00c4cc]/20 text-[#00a8b0] font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
               📥 CSV出力
             </button>
 
@@ -141,13 +141,13 @@ export const Layout: React.FC<LayoutProps> = ({
                 <div className="px-3 py-2 mt-5 mb-1 border-t-2 border-slate-200 pt-4">
                   <span className="text-base font-bold text-[#00c4cc]">⚙️ システム設定</span>
                 </div>
-                <button onClick={() => setActiveTab('master')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'master' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+                <button onClick={() => setActiveTab('master')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'master' ? 'bg-[#00c4cc]/20 text-[#00a8b0] font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
                   ⚙️ マスタ管理
                 </button>
-                <button onClick={() => setActiveTab('smarthr_settings')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'smarthr_settings' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+                <button onClick={() => setActiveTab('smarthr_settings')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'smarthr_settings' ? 'bg-[#00c4cc]/20 text-[#00a8b0] font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
                   🔗 SmartHR連携
                 </button>
-                <button onClick={() => setActiveTab('user_management')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'user_management' ? 'bg-[#00c4cc] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+                <button onClick={() => setActiveTab('user_management')} className={`w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors ${activeTab === 'user_management' ? 'bg-[#00c4cc]/20 text-[#00a8b0] font-semibold' : 'text-slate-600 hover:bg-slate-100'}`}>
                   👥 ユーザー管理
                 </button>
               </>

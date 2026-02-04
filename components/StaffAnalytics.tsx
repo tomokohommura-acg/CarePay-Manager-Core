@@ -8,7 +8,8 @@ import {
   EvaluationRecord,
   StaffUpdateData
 } from '../types';
-import { SalaryChart, FinalSalaryChart, SalaryBreakdownChart } from './SalaryChart';
+import { SalaryChart, FinalSalaryChart, SalaryBreakdownChart, ViewMode, ViewModeSwitch } from './SalaryChart';
+import { Line, Bar } from 'react-chartjs-2';
 import { EvaluationTable } from './EvaluationTable';
 import { getEffectiveBaseSalary, sortHistoryByEffectiveMonth, formatMonth } from '../utils/salaryUtils';
 
@@ -34,6 +35,13 @@ export const StaffAnalytics: React.FC<StaffAnalyticsProps> = ({
   const [staffFilter, setStaffFilter] = useState<StaffFilter>('active');
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // 各グラフの表示モード
+  const [baseSalaryViewMode, setBaseSalaryViewMode] = useState<ViewMode>('line');
+  const [finalSalaryViewMode, setFinalSalaryViewMode] = useState<ViewMode>('line');
+  const [breakdownViewMode, setBreakdownViewMode] = useState<ViewMode>('bar');
+  const [evaluationViewMode, setEvaluationViewMode] = useState<ViewMode>('table');
+  const [summaryViewMode, setSummaryViewMode] = useState<ViewMode>('table');
 
   // 選択中の事業所の職員リスト（全事業所モードの場合は全職員）
   const officeStaffList = useMemo(() => {
@@ -195,7 +203,7 @@ export const StaffAnalytics: React.FC<StaffAnalyticsProps> = ({
             onClick={() => { setStaffFilter('active'); setSelectedStaffId(''); }}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
               staffFilter === 'active'
-                ? 'bg-emerald-600 text-white'
+                ? 'bg-[#3dcc65] text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
@@ -342,7 +350,11 @@ export const StaffAnalytics: React.FC<StaffAnalyticsProps> = ({
 
           {/* 基本給の推移 */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <SalaryChart history={selectedStaff.baseSalaryHistory || []} />
+            <SalaryChart
+              history={selectedStaff.baseSalaryHistory || []}
+              viewMode={baseSalaryViewMode}
+              onViewModeChange={setBaseSalaryViewMode}
+            />
 
             {/* 改定履歴タイムライン */}
             {selectedStaff.baseSalaryHistory && selectedStaff.baseSalaryHistory.length > 0 && (
@@ -384,12 +396,20 @@ export const StaffAnalytics: React.FC<StaffAnalyticsProps> = ({
             <>
               {/* 最終支給額の推移 */}
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <FinalSalaryChart data={staffHistoryData} />
+                <FinalSalaryChart
+                  data={staffHistoryData}
+                  viewMode={finalSalaryViewMode}
+                  onViewModeChange={setFinalSalaryViewMode}
+                />
               </div>
 
               {/* 給与内訳の推移 */}
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <SalaryBreakdownChart data={staffHistoryData} />
+                <SalaryBreakdownChart
+                  data={staffHistoryData}
+                  viewMode={breakdownViewMode}
+                  onViewModeChange={setBreakdownViewMode}
+                />
               </div>
 
               {/* 評価項目の推移 */}
@@ -402,41 +422,183 @@ export const StaffAnalytics: React.FC<StaffAnalyticsProps> = ({
                       inputs: d.inputs
                     }))}
                     master={currentMaster}
+                    viewMode={evaluationViewMode}
+                    onViewModeChange={setEvaluationViewMode}
                   />
                 </div>
               )}
 
               {/* サマリーテーブル */}
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <h4 className="text-sm font-bold text-slate-600 mb-4 flex items-center gap-2">
-                  📋 期間別サマリー
-                </h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-widest">期間</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-widest">基本給</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-widest">資格手当</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-rose-500 uppercase tracking-widest">勤怠控除</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-emerald-500 uppercase tracking-widest">業績加算</th>
-                        <th className="px-4 py-3 text-right text-xs font-bold text-indigo-600 uppercase tracking-widest">最終支給額</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {staffHistoryData.map(d => (
-                        <tr key={d.periodId} className="hover:bg-slate-50/50">
-                          <td className="px-4 py-3 font-medium text-slate-700">{d.periodName}</td>
-                          <td className="px-4 py-3 text-right text-slate-600">¥{d.baseSalary.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right text-slate-600">¥{d.qualAllowance.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right text-rose-600 font-bold">-¥{d.deduction.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right text-emerald-600 font-bold">+¥{d.performance.toLocaleString()}</td>
-                          <td className="px-4 py-3 text-right text-indigo-600 font-bold">¥{d.finalSalary.toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                    📋 期間別サマリー
+                  </h4>
+                  <ViewModeSwitch mode={summaryViewMode} onChange={setSummaryViewMode} />
                 </div>
+                {summaryViewMode === 'table' ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-widest">期間</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-widest">基本給</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-widest">資格手当</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-rose-500 uppercase tracking-widest">勤怠控除</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-emerald-500 uppercase tracking-widest">業績加算</th>
+                          <th className="px-4 py-3 text-right text-xs font-bold text-indigo-600 uppercase tracking-widest">最終支給額</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {staffHistoryData.map(d => (
+                          <tr key={d.periodId} className="hover:bg-slate-50/50">
+                            <td className="px-4 py-3 font-medium text-slate-700">{d.periodName}</td>
+                            <td className="px-4 py-3 text-right text-slate-600">¥{d.baseSalary.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right text-slate-600">¥{d.qualAllowance.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right text-rose-600 font-bold">-¥{d.deduction.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right text-emerald-600 font-bold">+¥{d.performance.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right text-indigo-600 font-bold">¥{d.finalSalary.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ height: '300px' }}>
+                    {summaryViewMode === 'line' ? (
+                      <Line
+                        data={{
+                          labels: staffHistoryData.map(d => d.periodName),
+                          datasets: [
+                            {
+                              label: '基本給',
+                              data: staffHistoryData.map(d => d.baseSalary),
+                              borderColor: 'rgb(99, 102, 241)',
+                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                              borderWidth: 3,
+                              pointRadius: 5,
+                              tension: 0.3
+                            },
+                            {
+                              label: '資格手当',
+                              data: staffHistoryData.map(d => d.qualAllowance),
+                              borderColor: 'rgb(139, 92, 246)',
+                              backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                              borderWidth: 3,
+                              pointRadius: 5,
+                              tension: 0.3
+                            },
+                            {
+                              label: '勤怠控除',
+                              data: staffHistoryData.map(d => -d.deduction),
+                              borderColor: 'rgb(244, 63, 94)',
+                              backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                              borderWidth: 3,
+                              pointRadius: 5,
+                              tension: 0.3
+                            },
+                            {
+                              label: '業績加算',
+                              data: staffHistoryData.map(d => d.performance),
+                              borderColor: 'rgb(34, 197, 94)',
+                              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                              borderWidth: 3,
+                              pointRadius: 5,
+                              tension: 0.3
+                            },
+                            {
+                              label: '最終支給額',
+                              data: staffHistoryData.map(d => d.finalSalary),
+                              borderColor: 'rgb(59, 130, 246)',
+                              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                              borderWidth: 3,
+                              pointRadius: 5,
+                              tension: 0.3
+                            }
+                          ]
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: {
+                              position: 'bottom',
+                              labels: { usePointStyle: true, pointStyle: 'circle', padding: 15, font: { size: 10 } }
+                            },
+                            tooltip: {
+                              backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                              callbacks: {
+                                label: (context: any) => `${context.dataset.label}: ¥${Math.abs(context.raw).toLocaleString()}`
+                              }
+                            }
+                          },
+                          scales: {
+                            x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                            y: { grid: { color: 'rgba(0, 0, 0, 0.05)' }, ticks: { font: { size: 11 }, callback: (value: any) => `¥${(value / 10000).toFixed(0)}万` } }
+                          }
+                        }}
+                      />
+                    ) : (
+                      <Bar
+                        data={{
+                          labels: staffHistoryData.map(d => d.periodName),
+                          datasets: [
+                            {
+                              label: '基本給',
+                              data: staffHistoryData.map(d => d.baseSalary),
+                              backgroundColor: 'rgba(99, 102, 241, 0.8)',
+                              borderRadius: 4
+                            },
+                            {
+                              label: '資格手当',
+                              data: staffHistoryData.map(d => d.qualAllowance),
+                              backgroundColor: 'rgba(139, 92, 246, 0.8)',
+                              borderRadius: 4
+                            },
+                            {
+                              label: '勤怠控除',
+                              data: staffHistoryData.map(d => -d.deduction),
+                              backgroundColor: 'rgba(244, 63, 94, 0.8)',
+                              borderRadius: 4
+                            },
+                            {
+                              label: '業績加算',
+                              data: staffHistoryData.map(d => d.performance),
+                              backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                              borderRadius: 4
+                            },
+                            {
+                              label: '最終支給額',
+                              data: staffHistoryData.map(d => d.finalSalary),
+                              backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                              borderRadius: 4
+                            }
+                          ]
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: {
+                              position: 'bottom',
+                              labels: { usePointStyle: true, pointStyle: 'circle', padding: 15, font: { size: 10 } }
+                            },
+                            tooltip: {
+                              backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                              callbacks: {
+                                label: (context: any) => `${context.dataset.label}: ¥${Math.abs(context.raw).toLocaleString()}`
+                              }
+                            }
+                          },
+                          scales: {
+                            x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+                            y: { grid: { color: 'rgba(0, 0, 0, 0.05)' }, ticks: { font: { size: 11 }, callback: (value: any) => `¥${(value / 10000).toFixed(0)}万` } }
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             </>
           ) : (
