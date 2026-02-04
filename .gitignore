@@ -28,3 +28,9 @@ dist-ssr
 
 # Claude
 .claude/
+
+# Playwright MCP
+.playwright-mcp/
+
+# Windows artifacts
+nul
