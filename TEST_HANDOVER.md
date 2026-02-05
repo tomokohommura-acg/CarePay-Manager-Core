@@ -1,7 +1,8 @@
 # テスト実装 引継ぎドキュメント
 
 **作成日**: 2026-02-04
-**ステータス**: ユニットテスト150件 ALL PASS
+**最終更新**: 2026-02-05
+**ステータス**: ユニットテスト210件 ALL PASS
 
 ---
 
@@ -15,6 +16,8 @@
 - [x] 純粋関数テスト（salaryUtils, smarthrService, authPermissions）
 - [x] デモデータ整合性テスト
 - [x] コンポーネントテスト（Layout, StaffManager, BaseSalaryHistoryEditor）
+- [x] **StaffInput.tsx のテスト（給与計算ロジック）** ← 2026-02-05追加
+- [x] **HistoryView.tsx のテスト（評価履歴・変更ログ）** ← 2026-02-05追加
 - [x] CLAUDE.mdへのテストドキュメント追記
 - [x] vite.config.tsでE2Eフォルダ除外設定
 
@@ -30,9 +33,11 @@ npm run test:run
  ✓ tests/components/Layout.test.tsx (26 tests)
  ✓ tests/components/StaffManager.test.tsx (22 tests)
  ✓ tests/components/BaseSalaryHistoryEditor.test.tsx (19 tests)
+ ✓ tests/components/StaffInput.test.tsx (38 tests)
+ ✓ tests/components/HistoryView.test.tsx (22 tests)
 
-Test Files  7 passed (7)
-     Tests  150 passed (150)
+Test Files  9 passed (9)
+     Tests  210 passed (210)
 ```
 
 ---
@@ -46,14 +51,16 @@ tests/
 │   └── firebase.ts             # Firebase/Firestoreモック
 ├── utils/
 │   └── testUtils.tsx           # ヘルパー関数（createTestStaff等）
-├── salaryUtils.test.ts         # 基本給ユーティリティ
-├── smarthrService.test.ts      # SmartHR連携サービス
-├── authPermissions.test.ts     # 権限判定ロジック
-├── demoData.test.ts            # デモデータ整合性
+├── salaryUtils.test.ts         # 基本給ユーティリティ (16)
+├── smarthrService.test.ts      # SmartHR連携サービス (18)
+├── authPermissions.test.ts     # 権限判定ロジック (18)
+├── demoData.test.ts            # デモデータ整合性 (31)
 ├── components/
-│   ├── Layout.test.tsx         # Layoutコンポーネント
-│   ├── StaffManager.test.tsx   # StaffManagerコンポーネント
-│   └── BaseSalaryHistoryEditor.test.tsx
+│   ├── Layout.test.tsx         # Layoutコンポーネント (26)
+│   ├── StaffManager.test.tsx   # StaffManagerコンポーネント (22)
+│   ├── BaseSalaryHistoryEditor.test.tsx  # 基本給改定モーダル (19)
+│   ├── StaffInput.test.tsx     # 給与計算・評価入力 (38) ← NEW
+│   └── HistoryView.test.tsx    # 評価履歴・変更ログ (22) ← NEW
 └── e2e/
     └── demo-mode.spec.ts       # Playwright E2E（手動実行）
 ```
@@ -64,36 +71,37 @@ tests/
 
 ### 高優先度
 
-1. **StaffInput.tsx のテスト**
-   - 給与計算ロジックの中核
-   - 基本給 + 資格手当 - 勤怠控除 + 業績評価の計算検証
-   - 差分計算の正確性
-
-2. **useFirestoreData.ts のテスト**
+1. **useFirestoreData.ts のテスト**
    - クロージャバグ（2026-02-03修正）の再発防止
    - 複数ステート同時更新の整合性
    - Firestore保存・読み込みの検証
 
-### 中優先度
-
-3. **MasterManager.tsx のテスト**
+2. **MasterManager.tsx のテスト**
    - マスタCRUD操作
    - 評価期間のステータス管理
+   - SmartHR部署連携のモックが必要
 
-4. **SmartHRSyncDialog.tsx のテスト**
+### 中優先度
+
+3. **SmartHRSyncDialog.tsx のテスト**
    - 同期プレビュー表示
    - 同期実行フロー
 
-### 低優先度
-
-5. **StaffAnalytics.tsx のテスト**
+4. **StaffAnalytics.tsx のテスト**
    - グラフ表示切り替え
    - データ集計ロジック
 
-6. **E2Eテスト自動化**
+### 低優先度
+
+5. **E2Eテスト自動化**
    - `npm install -D @playwright/test`
    - `npx playwright install`
    - CI/CD統合
+
+### 完了済み（2026-02-05）
+
+- ~~StaffInput.tsx のテスト~~ → 38件実装済み
+- ~~HistoryView.tsx のテスト~~ → 22件実装済み
 
 ---
 
