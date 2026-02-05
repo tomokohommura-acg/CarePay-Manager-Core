@@ -389,4 +389,110 @@ describe('StaffManager', () => {
       expect(screen.getByDisplayValue('退職 太郎')).toBeInTheDocument();
     });
   });
+
+  describe('評価対象外フラグ', () => {
+    it('評価対象ヘッダーが表示される', () => {
+      render(
+        <StaffManager
+          staffList={mockStaffList}
+          setStaffList={setStaffList}
+          selectedOfficeId="office-001"
+          master={mockMaster}
+        />
+      );
+
+      expect(screen.getByText('評価対象')).toBeInTheDocument();
+    });
+
+    it('デフォルトで「対象」ボタンが表示される', () => {
+      render(
+        <StaffManager
+          staffList={mockStaffList}
+          setStaffList={setStaffList}
+          selectedOfficeId="office-001"
+          master={mockMaster}
+        />
+      );
+
+      const targetButtons = screen.getAllByRole('button', { name: '対象' });
+      expect(targetButtons.length).toBe(3); // 3人の職員
+    });
+
+    it('評価対象外の職員には「対象外」ボタンが表示される', () => {
+      const staffWithExcluded = [
+        ...mockStaffList,
+        createTestStaff({ id: 'staff-004', name: '対象外 太郎', excludedFromEvaluation: true })
+      ];
+
+      render(
+        <StaffManager
+          staffList={staffWithExcluded}
+          setStaffList={setStaffList}
+          selectedOfficeId="office-001"
+          master={mockMaster}
+        />
+      );
+
+      const excludedButton = screen.getByRole('button', { name: '対象外' });
+      expect(excludedButton).toBeInTheDocument();
+    });
+
+    it('対象ボタンをクリックすると対象外に切り替わる', () => {
+      render(
+        <StaffManager
+          staffList={mockStaffList}
+          setStaffList={setStaffList}
+          selectedOfficeId="office-001"
+          master={mockMaster}
+        />
+      );
+
+      const targetButtons = screen.getAllByRole('button', { name: '対象' });
+      fireEvent.click(targetButtons[0]);
+
+      expect(setStaffList).toHaveBeenCalled();
+      // setStaffListの呼び出し引数を確認
+      const updateFn = setStaffList.mock.calls[0][0];
+      const result = updateFn(mockStaffList);
+      expect(result[0].excludedFromEvaluation).toBe(true);
+    });
+
+    it('対象外ボタンをクリックすると対象に切り替わる', () => {
+      const staffWithExcluded = [
+        createTestStaff({ id: 'staff-001', name: '対象外 太郎', excludedFromEvaluation: true })
+      ];
+
+      render(
+        <StaffManager
+          staffList={staffWithExcluded}
+          setStaffList={setStaffList}
+          selectedOfficeId="office-001"
+          master={mockMaster}
+        />
+      );
+
+      const excludedButton = screen.getByRole('button', { name: '対象外' });
+      fireEvent.click(excludedButton);
+
+      expect(setStaffList).toHaveBeenCalled();
+      const updateFn = setStaffList.mock.calls[0][0];
+      const result = updateFn(staffWithExcluded);
+      expect(result[0].excludedFromEvaluation).toBe(false);
+    });
+
+    it('canEdit=falseの場合、対象ボタンが無効になる', () => {
+      render(
+        <StaffManager
+          staffList={mockStaffList}
+          setStaffList={setStaffList}
+          selectedOfficeId="office-001"
+          master={mockMaster}
+          canEdit={false}
+        />
+      );
+
+      const targetButtons = screen.getAllByRole('button', { name: '対象' });
+      expect(targetButtons[0]).toBeDisabled();
+    });
+  });
 });

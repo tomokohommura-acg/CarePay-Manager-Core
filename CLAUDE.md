@@ -179,6 +179,7 @@ interface Staff {
   smarthrEmpCode?: string;   // SmartHR社員番号
   smarthrCrewId?: string;    // SmartHR従業員ID
   smarthrSyncedAt?: string;  // 最終同期日時
+  excludedFromEvaluation?: boolean;  // 評価対象外フラグ
 }
 
 // Office型の拡張フィールド
@@ -766,6 +767,35 @@ useEffect(() => {
 const latestEntry = [...history].sort((a, b) =>
   new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
 )[0];
+```
+
+### 評価対象外フラグ（2026-02-05 追加）
+
+職員名簿で職員ごとに「評価対象」「対象外」を切り替えられる機能。対象外に設定された職員は評価データ入力画面に表示されなくなる。
+
+**用途:**
+- 事務職など評価対象外の職員
+- 長期休暇中の職員
+- その他、一時的に評価から除外したい職員
+
+**UI:**
+- 職員名簿の「評価対象」カラムにトグルボタン
+- 緑色の「対象」= 評価対象（デフォルト）
+- 赤色の「対象外」= 評価対象外
+- 対象外の職員は行が薄い赤背景で表示
+
+**実装:**
+```typescript
+// types.ts
+interface Staff {
+  excludedFromEvaluation?: boolean;  // 評価対象外フラグ
+}
+
+// App.tsx - 評価データの自動同期で除外
+if (staff.excludedFromEvaluation) continue;
+
+// App.tsx - 評価データ入力画面のフィルタリング
+if (staff?.excludedFromEvaluation) return false;
 ```
 
 ---

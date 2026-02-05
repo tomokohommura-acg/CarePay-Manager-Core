@@ -65,6 +65,8 @@ export interface Staff {
   smarthrEmpCode?: string;
   smarthrCrewId?: string;
   smarthrSyncedAt?: string;
+  // 評価対象外フラグ
+  excludedFromEvaluation?: boolean;
 }
 
 export interface EvaluationRecord {

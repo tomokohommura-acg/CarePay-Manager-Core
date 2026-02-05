@@ -172,6 +172,7 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">基本給</th>
               <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">基本給更新日</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">保有資格 (★=優先反映)</th>
+              <th className="px-4 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">評価対象</th>
               <th className="px-6 py-4 w-20"></th>
             </tr>
           </thead>
@@ -179,7 +180,7 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
             {officeStaff.map(s => {
               const primaryQualId = getPrimaryQualId(s.qualifications);
               return (
-                <tr key={s.id} className={`hover:bg-slate-50/50 transition-colors ${s.resignedAt ? 'opacity-50' : ''}`}>
+                <tr key={s.id} className={`hover:bg-slate-50/50 transition-colors ${s.resignedAt ? 'opacity-50' : ''} ${s.excludedFromEvaluation ? 'bg-rose-50/50' : ''}`}>
                   <td className="px-6 py-4">
                     <input type="text" value={s.name} onChange={(e) => handleUpdateStaff(s.id, 'name', e.target.value)} className="w-full bg-transparent border-none focus:ring-0 font-medium text-slate-700 p-0" placeholder="氏名を入力" disabled={!canEdit} />
                   </td>
@@ -250,6 +251,20 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
                         );
                       })}
                     </div>
+                  </td>
+                  <td className="px-4 py-4 text-center">
+                    <button
+                      onClick={() => handleUpdateStaff(s.id, 'excludedFromEvaluation', !s.excludedFromEvaluation)}
+                      disabled={!canEdit}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
+                        s.excludedFromEvaluation
+                          ? 'bg-rose-100 text-rose-600 border border-rose-300 hover:bg-rose-200'
+                          : 'bg-emerald-100 text-emerald-600 border border-emerald-300 hover:bg-emerald-200'
+                      } ${!canEdit ? 'cursor-not-allowed opacity-50' : ''}`}
+                      title={s.excludedFromEvaluation ? '評価対象外' : '評価対象'}
+                    >
+                      {s.excludedFromEvaluation ? '対象外' : '対象'}
+                    </button>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button onClick={() => setDeleteTargetId({id: s.id, name: s.name})} className="text-slate-300 hover:text-rose-500 transition-colors p-2" title="削除">🗑️</button>

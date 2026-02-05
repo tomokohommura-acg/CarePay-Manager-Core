@@ -2,7 +2,7 @@
 
 **作成日**: 2026-02-04
 **最終更新**: 2026-02-05
-**ステータス**: ユニットテスト207件 ALL PASS
+**ステータス**: ユニットテスト213件 ALL PASS
 
 ---
 
@@ -18,6 +18,7 @@
 - [x] コンポーネントテスト（Layout, StaffManager, BaseSalaryHistoryEditor）
 - [x] **StaffInput.tsx のテスト（給与計算ロジック）** ← 2026-02-05追加
 - [x] **HistoryView.tsx のテスト（評価履歴・変更ログ）** ← 2026-02-05追加
+- [x] **評価対象外フラグのテスト（StaffManager）** ← 2026-02-05追加
 - [x] CLAUDE.mdへのテストドキュメント追記
 - [x] vite.config.tsでE2Eフォルダ除外設定
 
@@ -31,13 +32,13 @@ npm run test:run
  ✓ tests/authPermissions.test.ts (18 tests)
  ✓ tests/demoData.test.ts (31 tests)
  ✓ tests/components/Layout.test.tsx (26 tests)
- ✓ tests/components/StaffManager.test.tsx (21 tests)
+ ✓ tests/components/StaffManager.test.tsx (27 tests)
  ✓ tests/components/BaseSalaryHistoryEditor.test.tsx (19 tests)
  ✓ tests/components/StaffInput.test.tsx (36 tests)
  ✓ tests/components/HistoryView.test.tsx (22 tests)
 
 Test Files  9 passed (9)
-     Tests  207 passed (207)
+     Tests  213 passed (213)
 ```
 
 ---
@@ -57,7 +58,7 @@ tests/
 ├── demoData.test.ts            # デモデータ整合性 (31)
 ├── components/
 │   ├── Layout.test.tsx         # Layoutコンポーネント (26)
-│   ├── StaffManager.test.tsx   # StaffManagerコンポーネント (22)
+│   ├── StaffManager.test.tsx   # StaffManagerコンポーネント (27)
 │   ├── BaseSalaryHistoryEditor.test.tsx  # 基本給改定モーダル (19)
 │   ├── StaffInput.test.tsx     # 給与計算・評価入力 (38) ← NEW
 │   └── HistoryView.test.tsx    # 評価履歴・変更ログ (22) ← NEW

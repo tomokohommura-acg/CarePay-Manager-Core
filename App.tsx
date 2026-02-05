@@ -154,6 +154,9 @@ const AppContent: React.FC = () => {
 
       // この事業所・期間に対象となる職員を取得
       for (const staff of staffList) {
+        // 評価対象外の職員はスキップ
+        if (staff.excludedFromEvaluation) continue;
+
         // 退職済み職員は評価期間開始前に退職していたらスキップ
         if (staff.resignedAt && evaluationStartDate) {
           const resignedDate = new Date(staff.resignedAt);
@@ -259,6 +262,10 @@ const AppContent: React.FC = () => {
       const isCorrectPeriod = Object.keys(evaluationRecords).find(key => evaluationRecords[key] === r)?.startsWith(recordKeyPrefix);
 
       const staff = staffList.find(s => s.id === r.staffId);
+
+      // 評価対象外の職員は除外
+      if (staff?.excludedFromEvaluation) return false;
+
       if (staff?.resignedAt && evaluationStartDate) {
         const resignedDate = new Date(staff.resignedAt);
         if (resignedDate < evaluationStartDate) return false;
