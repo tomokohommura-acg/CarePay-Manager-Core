@@ -268,7 +268,11 @@ export function transformCrewToStaff(
     name: `${crew.last_name} ${crew.first_name}`,
     rawDepartment: crew.department,
     normalizedDept,
-    deptFullPath
+    deptFullPath,
+    // 基本情報のデバッグ追加
+    emp_code: crew.emp_code,
+    entered_at: crew.entered_at,
+    resigned_at: crew.resigned_at
   });
 
   // 部署→事業所のマッピングを検索
