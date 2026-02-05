@@ -71,41 +71,6 @@ describe('StaffManager', () => {
       expect(screen.getByText('¥200,000')).toBeInTheDocument();
     });
 
-    it('「職員を新規登録」ボタンが表示される', () => {
-      render(
-        <StaffManager
-          staffList={mockStaffList}
-          setStaffList={setStaffList}
-          selectedOfficeId="office-001"
-          master={mockMaster}
-        />
-      );
-
-      expect(screen.getByRole('button', { name: /職員を新規登録/ })).toBeInTheDocument();
-    });
-  });
-
-  describe('職員の追加', () => {
-    it('新規職員追加ボタンをクリックすると職員が追加される', () => {
-      render(
-        <StaffManager
-          staffList={mockStaffList}
-          setStaffList={setStaffList}
-          selectedOfficeId="office-001"
-          master={mockMaster}
-        />
-      );
-
-      const addButton = screen.getByRole('button', { name: /職員を新規登録/ });
-      fireEvent.click(addButton);
-
-      expect(setStaffList).toHaveBeenCalled();
-      const updateFn = setStaffList.mock.calls[0][0];
-      const newList = updateFn(mockStaffList);
-      expect(newList.length).toBe(mockStaffList.length + 1);
-      expect(newList[newList.length - 1].name).toBe('新職員');
-      expect(newList[newList.length - 1].baseSalary).toBe(200000);
-    });
   });
 
   describe('職員の削除', () => {
@@ -260,10 +225,26 @@ describe('StaffManager', () => {
         />
       );
 
-      const filterButton = screen.getByRole('button', { name: '未設定のみ表示' });
+      const filterButton = screen.getByRole('button', { name: /未設定のみ/ });
       fireEvent.click(filterButton);
 
       expect(setShowUnconfiguredOnly).toHaveBeenCalledWith(true);
+    });
+
+    it('全員ボタンと未設定のみボタンが常に表示される', () => {
+      const setShowUnconfiguredOnly = vi.fn();
+      render(
+        <StaffManager
+          staffList={mockStaffList}
+          setStaffList={setStaffList}
+          selectedOfficeId="office-001"
+          master={mockMaster}
+          setShowUnconfiguredOnly={setShowUnconfiguredOnly}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: '全員' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /未設定のみ/ })).toBeInTheDocument();
     });
 
     it('フィルターON時は未設定の職員のみ表示される', () => {

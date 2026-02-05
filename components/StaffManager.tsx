@@ -53,17 +53,6 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
     }));
   };
 
-  const handleAddStaff = () => {
-    const newStaff: Staff = {
-      id: crypto.randomUUID(),
-      officeId: selectedOfficeId,
-      name: '新職員',
-      baseSalary: 200000,
-      qualifications: []
-    };
-    setStaffList(prev => [...prev, newStaff]);
-  };
-
   const confirmDelete = () => {
     if (deleteTargetId) {
       setStaffList(prev => prev.filter(s => s.id !== deleteTargetId.id));
@@ -107,44 +96,68 @@ export const StaffManager: React.FC<StaffManagerProps> = ({
 
       <div className="flex items-center justify-between">
         <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">👥 職員名簿・基本給管理</h3>
-        <div className="flex items-center gap-2">
-          {onOpenSyncDialog && (
-            <button
-              onClick={onOpenSyncDialog}
-              disabled={!smarthrConfigured}
-              title={smarthrConfigured ? 'SmartHRから従業員データを同期' : 'SmartHR連携設定を完了してください'}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
-                smarthrConfigured
-                  ? 'bg-[#00c4cc] text-white hover:bg-[#00a8b0] shadow-lg shadow-[#00c4cc]/30'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-              }`}
-            >
-              🔄 SmartHRから同期
-            </button>
-          )}
-          <button onClick={handleAddStaff} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center gap-2"><span>+</span> 職員を新規登録</button>
-        </div>
-      </div>
-
-      {/* 未設定フィルター */}
-      {unconfiguredCount > 0 && setShowUnconfiguredOnly && (
-        <div className="flex items-center justify-between bg-amber-50 rounded-xl p-4 border border-amber-100">
-          <div className="flex items-center gap-2">
-            <span className="text-amber-600 text-lg">⚠️</span>
-            <span className="text-sm text-amber-700">
-              <strong>{unconfiguredCount}名</strong>の基本給が未設定（デフォルト値: ¥{DEFAULT_BASE_SALARY.toLocaleString()}）です
-            </span>
-          </div>
+        {onOpenSyncDialog && (
           <button
-            onClick={() => setShowUnconfiguredOnly(!showUnconfiguredOnly)}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-              showUnconfiguredOnly
-                ? 'bg-amber-600 text-white'
-                : 'bg-white text-amber-600 border border-amber-300 hover:bg-amber-100'
+            onClick={onOpenSyncDialog}
+            disabled={!smarthrConfigured}
+            title={smarthrConfigured ? 'SmartHRから従業員データを同期' : 'SmartHR連携設定を完了してください'}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+              smarthrConfigured
+                ? 'bg-[#00c4cc] text-white hover:bg-[#00a8b0] shadow-lg shadow-[#00c4cc]/30'
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >
-            {showUnconfiguredOnly ? '全員を表示' : '未設定のみ表示'}
+            🔄 SmartHRから同期
           </button>
+        )}
+      </div>
+
+      {/* フィルター - 常に表示 */}
+      {setShowUnconfiguredOnly && (
+        <div className={`flex items-center justify-between rounded-xl p-4 border ${
+          unconfiguredCount > 0
+            ? 'bg-amber-50 border-amber-100'
+            : 'bg-slate-50 border-slate-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            {unconfiguredCount > 0 ? (
+              <>
+                <span className="text-amber-600 text-lg">⚠️</span>
+                <span className="text-sm text-amber-700">
+                  <strong>{unconfiguredCount}名</strong>の基本給が未設定（デフォルト値: ¥{DEFAULT_BASE_SALARY.toLocaleString()}）です
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-slate-500 text-lg">✅</span>
+                <span className="text-sm text-slate-600">
+                  全職員の基本給が設定済みです
+                </span>
+              </>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowUnconfiguredOnly(false)}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                !showUnconfiguredOnly
+                  ? 'bg-[#26519f] text-white'
+                  : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+              }`}
+            >
+              全員
+            </button>
+            <button
+              onClick={() => setShowUnconfiguredOnly(true)}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                showUnconfiguredOnly
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-white text-amber-600 border border-amber-300 hover:bg-amber-100'
+              }`}
+            >
+              未設定のみ ({unconfiguredCount})
+            </button>
+          </div>
         </div>
       )}
 

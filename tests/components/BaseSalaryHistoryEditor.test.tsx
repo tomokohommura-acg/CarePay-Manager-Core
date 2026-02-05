@@ -152,11 +152,14 @@ describe('BaseSalaryHistoryEditor', () => {
 
       // フォームタイトルで確認
       expect(screen.getByText('新しい改定を追加')).toBeInTheDocument();
+      // 入力方法切替ボタンが表示される
+      expect(screen.getByRole('button', { name: '金額を直接入力' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '増減額を入力' })).toBeInTheDocument();
       // フォームのラベルは複数存在しうるのでgetAllByTextを使用
       const monthLabels = screen.getAllByText('適用月');
       expect(monthLabels.length).toBeGreaterThan(0);
-      const amountLabels = screen.getAllByText('金額');
-      expect(amountLabels.length).toBeGreaterThan(0);
+      // デフォルトは「直接入力」モードで「新しい基本給」ラベルが表示される
+      expect(screen.getByText('新しい基本給')).toBeInTheDocument();
       // メモは「メモ（任意）」という形式なのでパターンマッチ
       expect(screen.getAllByText(/メモ/).length).toBeGreaterThan(0);
     });

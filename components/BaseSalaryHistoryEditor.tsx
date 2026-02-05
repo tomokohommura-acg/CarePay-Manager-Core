@@ -27,22 +27,37 @@ export const BaseSalaryHistoryEditor: React.FC<BaseSalaryHistoryEditorProps> = (
   const [newAmount, setNewAmount] = useState<number>(staff.baseSalary);
   const [newMemo, setNewMemo] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<BaseSalaryRevision | null>(null);
+  const [inputMode, setInputMode] = useState<'direct' | 'diff'>('direct');
+  const [diffAmount, setDiffAmount] = useState<number>(0);
 
   const sortedHistory = sortHistoryByEffectiveMonth(localStaff.baseSalaryHistory || []);
 
+  // 増減額から計算された最終金額
+  const calculatedAmount = inputMode === 'diff'
+    ? localStaff.baseSalary + diffAmount
+    : newAmount;
+
   const handleAddRevision = () => {
-    if (!newEffectiveMonth || newAmount <= 0) return;
+    if (!newEffectiveMonth) return;
+
+    const finalAmount = inputMode === 'diff'
+      ? localStaff.baseSalary + diffAmount
+      : newAmount;
+
+    if (finalAmount <= 0) return;
 
     const updatedStaff = addBaseSalaryRevision(localStaff, {
       effectiveMonth: newEffectiveMonth,
-      amount: newAmount,
+      amount: finalAmount,
       memo: newMemo || undefined
     });
 
     setLocalStaff(updatedStaff);
     setShowAddForm(false);
     setNewAmount(updatedStaff.baseSalary);
+    setDiffAmount(0);
     setNewMemo('');
+    setInputMode('direct');
   };
 
   const handleDeleteRevision = () => {
@@ -137,6 +152,34 @@ export const BaseSalaryHistoryEditor: React.FC<BaseSalaryHistoryEditorProps> = (
           {showAddForm ? (
             <div className="bg-emerald-50 rounded-xl p-6 border border-emerald-200">
               <h5 className="text-sm font-bold text-emerald-700 mb-4">新しい改定を追加</h5>
+
+              {/* 入力モード切替 */}
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-slate-600 mb-2">入力方法</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setInputMode('direct')}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                      inputMode === 'direct'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    金額を直接入力
+                  </button>
+                  <button
+                    onClick={() => setInputMode('diff')}
+                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                      inputMode === 'diff'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    増減額を入力
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-2">適用月</label>
@@ -148,19 +191,68 @@ export const BaseSalaryHistoryEditor: React.FC<BaseSalaryHistoryEditorProps> = (
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-2">金額</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
-                    <input
-                      type="number"
-                      value={newAmount}
-                      onChange={(e) => setNewAmount(Number(e.target.value))}
-                      className="w-full px-4 py-2 pl-8 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                      step="1000"
-                    />
-                  </div>
+                  {inputMode === 'direct' ? (
+                    <>
+                      <label className="block text-xs font-bold text-slate-600 mb-2">新しい基本給</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
+                        <input
+                          type="number"
+                          value={newAmount}
+                          onChange={(e) => setNewAmount(Number(e.target.value))}
+                          className="w-full px-4 py-2 pl-8 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          step="1000"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <label className="block text-xs font-bold text-slate-600 mb-2">
+                        増減額 <span className="font-normal text-slate-400">（＋昇給 / −減給）</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
+                        <input
+                          type="number"
+                          value={diffAmount}
+                          onChange={(e) => setDiffAmount(Number(e.target.value))}
+                          placeholder="+5000 または -3000"
+                          className="w-full px-4 py-2 pl-8 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                          step="1000"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
+
+              {/* 増減額モードの場合、計算結果をプレビュー */}
+              {inputMode === 'diff' && (
+                <div className={`mb-4 p-4 rounded-xl border ${
+                  calculatedAmount > 0 ? 'bg-white border-slate-200' : 'bg-rose-50 border-rose-200'
+                }`}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">現在の基本給</span>
+                    <span className="font-bold">¥{localStaff.baseSalary.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm mt-1">
+                    <span className="text-slate-500">増減額</span>
+                    <span className={`font-bold ${diffAmount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {diffAmount >= 0 ? '+' : ''}¥{diffAmount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="border-t border-slate-200 mt-2 pt-2 flex items-center justify-between">
+                    <span className="text-slate-700 font-bold">新しい基本給</span>
+                    <span className={`text-lg font-bold ${calculatedAmount > 0 ? 'text-[#26519f]' : 'text-rose-600'}`}>
+                      ¥{calculatedAmount.toLocaleString()}
+                    </span>
+                  </div>
+                  {calculatedAmount <= 0 && (
+                    <p className="text-xs text-rose-600 mt-2">※ 基本給は0より大きい値にしてください</p>
+                  )}
+                </div>
+              )}
+
               <div className="mb-4">
                 <label className="block text-xs font-bold text-slate-600 mb-2">メモ（任意）</label>
                 <input
@@ -173,14 +265,18 @@ export const BaseSalaryHistoryEditor: React.FC<BaseSalaryHistoryEditorProps> = (
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={() => setShowAddForm(false)}
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setInputMode('direct');
+                    setDiffAmount(0);
+                  }}
                   className="flex-1 px-4 py-2 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50"
                 >
                   キャンセル
                 </button>
                 <button
                   onClick={handleAddRevision}
-                  disabled={!newEffectiveMonth || newAmount <= 0}
+                  disabled={!newEffectiveMonth || calculatedAmount <= 0}
                   className="flex-1 px-4 py-2 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   追加

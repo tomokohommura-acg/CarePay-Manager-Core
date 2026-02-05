@@ -666,6 +666,95 @@ const generateCSV = () => {
 
 ---
 
+## 職員名簿→評価データ自動同期（2026-02-05 実装）
+
+### 概要
+
+職員名簿で変更したデータが評価データ入力簿に自動反映される機能。手動同期ボタンは廃止。
+
+### 自動反映される項目
+
+- 基本給（baseSalary）
+- 氏名（name）
+- 資格（qualifications）
+
+### 動作フロー
+
+```
+SmartHR同期 → 職員名簿で基本給設定 → 評価データに自動反映
+```
+
+### 実装詳細
+
+```typescript
+// App.tsx - 自動同期Effect
+useEffect(() => {
+  // 全評価期間に対して処理
+  const allPeriods = Object.values(masters).flatMap(m => m?.periods || []);
+
+  for (const period of allPeriods) {
+    for (const staff of staffList) {
+      const key = `${period.id}_${staff.id}`;
+      const existingRecord = updatedRecords[key];
+
+      if (existingRecord) {
+        // 既存レコードの更新
+        if (needsUpdate) {
+          updatedRecords[key] = { ...existingRecord, ...updatedFields };
+        }
+      } else {
+        // 新規レコードの作成
+        updatedRecords[key] = createNewRecord(staff);
+      }
+    }
+  }
+}, [staffList, masters, evaluationRecords]);
+```
+
+### 注意事項
+
+- 退職済み職員は評価期間開始前に退職していた場合、自動追加されない
+- 評価データ入力簿の「職員を追加」ボタンは廃止
+
+---
+
+## 給与管理の増減額入力モード（2026-02-05 実装）
+
+### 概要
+
+基本給改定時に、新しい金額を直接入力する方法と、増減額（+5000、-3000など）を入力する方法を選択可能。
+
+### 入力モード
+
+| モード | 説明 |
+|-------|------|
+| 金額を直接入力 | 新しい基本給をそのまま入力（従来の方式） |
+| 増減額を入力 | 昇給額または減給額のみを入力（自動計算） |
+
+### UI
+
+```
+┌─────────────────────────────────────────┐
+│ 入力方法                                │
+│ [金額を直接入力] [増減額を入力]         │
+├─────────────────────────────────────────┤
+│ 適用月: 2026-02                         │
+│ 増減額（＋昇給 / −減給）: +5000        │
+├─────────────────────────────────────────┤
+│ 現在の基本給     ¥250,000              │
+│ 増減額           +¥5,000               │
+│ ─────────────────────────              │
+│ 新しい基本給     ¥255,000              │
+└─────────────────────────────────────────┘
+```
+
+### バリデーション
+
+- 計算結果が0以下の場合、追加ボタンは無効化
+- エラーメッセージ：「※ 基本給は0より大きい値にしてください」
+
+---
+
 ## 職員名簿の追加機能（2026-02-03 実装）
 
 ### 基本給更新日カラム
@@ -723,7 +812,7 @@ GEMINI_API_KEY=your-gemini-api-key
 
 ---
 
-## 実装ステータス（2026-02-04 更新）
+## 実装ステータス（2026-02-05 更新）
 
 ### ✅ 完了済み
 
@@ -781,6 +870,19 @@ GEMINI_API_KEY=your-gemini-api-key
   - `demoData.ts`（31テスト）: デモデータの整合性・構造検証
 - [x] E2Eテスト: Playwright MCPによるデモモードテスト（全項目合格）
 - [x] 不具合修正: 全事業所モードでの評価データ入力・ヘッダー表示
+
+#### 2026-02-05 機能改善・UI改善
+- [x] 職員名簿フィルターボタン常時表示（「全員」「未設定のみ」ボタン）
+- [x] 「職員を新規登録」ボタン削除（SmartHR同期のみに統一）
+- [x] 職員名簿→評価データ入力簿の自動同期
+  - 基本給変更時に評価データへ自動反映
+  - 新規職員追加時に全評価期間へ自動追加
+- [x] 「職員を追加」ボタン削除（StaffInputから削除、自動同期に移行）
+- [x] 給与管理モーダルに増減額入力モード追加
+  - 「金額を直接入力」と「増減額を入力」の切り替え
+  - 増減額モードで計算結果をプレビュー表示
+- [x] SmartHR同期デバッグログ追加（emp_code, entered_at, resigned_at）
+- [x] テスト更新（207件）
 
 ---
 
@@ -857,12 +959,12 @@ npm run test:run
 | `tests/authPermissions.test.ts` | 権限判定ロジック（AuthContext相当） | 18 |
 | `tests/demoData.test.ts` | `utils/demoData.ts` | 31 |
 | `tests/components/Layout.test.tsx` | `components/Layout.tsx` | 26 |
-| `tests/components/StaffManager.test.tsx` | `components/StaffManager.tsx` | 22 |
+| `tests/components/StaffManager.test.tsx` | `components/StaffManager.tsx` | 21 |
 | `tests/components/BaseSalaryHistoryEditor.test.tsx` | `components/BaseSalaryHistoryEditor.tsx` | 19 |
-| `tests/components/StaffInput.test.tsx` | `components/StaffInput.tsx` | 38 |
+| `tests/components/StaffInput.test.tsx` | `components/StaffInput.tsx` | 36 |
 | `tests/components/HistoryView.test.tsx` | `components/HistoryView.tsx` | 22 |
 
-**合計: 210テスト（9ファイル）**
+**合計: 207テスト（9ファイル）**
 
 #### salaryUtils.test.ts のテストケース
 

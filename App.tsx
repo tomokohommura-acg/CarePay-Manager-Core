@@ -139,6 +139,66 @@ const AppContent: React.FC = () => {
     }
   }, [selectedOfficeId, masters, accessibleOffices, selectedPeriodId, setSelectedPeriodId]);
 
+  // 職員名簿の変更を評価データに自動反映（新規追加・更新両方）
+  useEffect(() => {
+    if (staffList.length === 0) return;
+
+    let hasUpdates = false;
+    const updatedRecords = { ...evaluationRecords };
+
+    // 全評価期間に対して処理
+    const allPeriods = Object.values(masters).flatMap(m => m?.periods || []);
+
+    for (const period of allPeriods) {
+      const evaluationStartDate = period.evaluationStart ? new Date(period.evaluationStart + '-01') : null;
+
+      // この事業所・期間に対象となる職員を取得
+      for (const staff of staffList) {
+        // 退職済み職員は評価期間開始前に退職していたらスキップ
+        if (staff.resignedAt && evaluationStartDate) {
+          const resignedDate = new Date(staff.resignedAt);
+          if (resignedDate < evaluationStartDate) continue;
+        }
+
+        const key = `${period.id}_${staff.id}`;
+        const existingRecord = updatedRecords[key];
+
+        if (existingRecord) {
+          // 既存レコードの更新チェック
+          const needsUpdate =
+            existingRecord.baseSalary !== staff.baseSalary ||
+            existingRecord.name !== staff.name ||
+            JSON.stringify(existingRecord.qualifications) !== JSON.stringify(staff.qualifications);
+
+          if (needsUpdate) {
+            updatedRecords[key] = {
+              ...existingRecord,
+              name: staff.name,
+              baseSalary: staff.baseSalary,
+              qualifications: [...staff.qualifications]
+            };
+            hasUpdates = true;
+          }
+        } else {
+          // 新規レコードの作成
+          updatedRecords[key] = {
+            staffId: staff.id,
+            officeId: staff.officeId,
+            name: staff.name,
+            baseSalary: staff.baseSalary,
+            qualifications: [...staff.qualifications],
+            previousSalary: staff.previousSalary
+          };
+          hasUpdates = true;
+        }
+      }
+    }
+
+    if (hasUpdates) {
+      setEvaluationRecords(updatedRecords);
+    }
+  }, [staffList, masters, evaluationRecords, setEvaluationRecords]);
+
   // 認証ローディング中（デモモードではスキップ）
   if (!demoMode && authLoading) {
     return (
@@ -209,46 +269,6 @@ const AppContent: React.FC = () => {
 
   const dashboardRecord = viewingStaffId ? evaluationRecords[`${selectedPeriodId}_${viewingStaffId}`] : null;
   const dashboardInput = viewingStaffId ? (inputs[`${selectedPeriodId}_${viewingStaffId}`] || { staffId: viewingStaffId, periodId: selectedPeriodId, attendanceInputs: {}, performanceInputs: {} }) : null;
-
-  const syncStaffFromMaster = () => {
-    if (!selectedPeriodId) return alert("期間を選択してください");
-    if (!activePeriod) return alert("評価期間が設定されていません");
-
-    const evaluationStartDate = activePeriod.evaluationStart ? new Date(activePeriod.evaluationStart + '-01') : null;
-
-    const officeStaff = staffList.filter(s => {
-      if (s.officeId !== selectedOfficeId) return false;
-      if (s.resignedAt && evaluationStartDate) {
-        const resignedDate = new Date(s.resignedAt);
-        if (resignedDate < evaluationStartDate) return false;
-      }
-      return true;
-    });
-
-    let addedCount = 0;
-
-    setEvaluationRecords(prev => {
-      const newRecords = { ...prev };
-      officeStaff.forEach(staff => {
-        const key = `${selectedPeriodId}_${staff.id}`;
-        if (!newRecords[key]) {
-          newRecords[key] = {
-            staffId: staff.id,
-            officeId: staff.officeId,
-            name: staff.name,
-            baseSalary: staff.baseSalary,
-            qualifications: [...staff.qualifications],
-            previousSalary: staff.previousSalary
-          };
-          addedCount++;
-        }
-      });
-      return newRecords;
-    });
-
-    if (addedCount > 0) alert(`${addedCount}名の職員をこの期間の評価対象に追加しました。`);
-    else alert("追加が必要な新規職員はいませんでした。");
-  };
 
   const handleUpdateMaster = (updated: MasterData) => {
     setMasters(prev => ({ ...prev, [businessType]: updated }));
@@ -437,7 +457,6 @@ const AppContent: React.FC = () => {
             onPeriodChange={setSelectedPeriodId}
             onInputChange={handleLocalInputChange}
             onSaveHistory={handleSaveToHistory}
-            onSync={syncStaffFromMaster}
             onOpenDashboard={(id) => setViewingStaffId(id)}
             canEdit={canEditCurrentOffice}
           />

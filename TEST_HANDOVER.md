@@ -2,7 +2,7 @@
 
 **作成日**: 2026-02-04
 **最終更新**: 2026-02-05
-**ステータス**: ユニットテスト210件 ALL PASS
+**ステータス**: ユニットテスト207件 ALL PASS
 
 ---
 
@@ -31,13 +31,13 @@ npm run test:run
  ✓ tests/authPermissions.test.ts (18 tests)
  ✓ tests/demoData.test.ts (31 tests)
  ✓ tests/components/Layout.test.tsx (26 tests)
- ✓ tests/components/StaffManager.test.tsx (22 tests)
+ ✓ tests/components/StaffManager.test.tsx (21 tests)
  ✓ tests/components/BaseSalaryHistoryEditor.test.tsx (19 tests)
- ✓ tests/components/StaffInput.test.tsx (38 tests)
+ ✓ tests/components/StaffInput.test.tsx (36 tests)
  ✓ tests/components/HistoryView.test.tsx (22 tests)
 
 Test Files  9 passed (9)
-     Tests  210 passed (210)
+     Tests  207 passed (207)
 ```
 
 ---

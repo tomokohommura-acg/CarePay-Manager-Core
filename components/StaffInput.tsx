@@ -10,7 +10,6 @@ interface StaffInputProps {
   onPeriodChange: (id: string) => void;
   onInputChange: (data: StaffUpdateData) => void;
   onSaveHistory: () => void;
-  onSync: () => void;
   onOpenDashboard: (staffId: string) => void;
   canEdit?: boolean;
 }
@@ -23,7 +22,6 @@ export const StaffInput: React.FC<StaffInputProps> = ({
   onPeriodChange,
   onInputChange,
   onSaveHistory,
-  onSync,
   onOpenDashboard,
   canEdit = true
 }) => {
@@ -137,30 +135,17 @@ export const StaffInput: React.FC<StaffInputProps> = ({
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={onSync} 
-              disabled={isPeriodLocked}
-              className={`px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
-                isPeriodLocked 
-                ? 'bg-slate-100 text-slate-300 border border-slate-200 cursor-not-allowed' 
-                : 'text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50'
-              }`}
-            >
-              🔄 職員を追加
-            </button>
-            <button 
-              onClick={onSaveHistory} 
-              disabled={isPeriodLocked}
-              className={`px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-lg ${
-                isPeriodLocked 
-                ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed' 
-                : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'
-              }`}
-            >
-              💾 評価を履歴保存
-            </button>
-          </div>
+          <button
+            onClick={onSaveHistory}
+            disabled={isPeriodLocked}
+            className={`px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-lg ${
+              isPeriodLocked
+              ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
+              : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'
+            }`}
+          >
+            💾 評価を履歴保存
+          </button>
         </div>
       </div>
 

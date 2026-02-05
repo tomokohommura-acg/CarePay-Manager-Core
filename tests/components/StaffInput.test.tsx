@@ -66,7 +66,6 @@ describe('StaffInput', () => {
     onPeriodChange: vi.fn(),
     onInputChange: vi.fn(),
     onSaveHistory: vi.fn(),
-    onSync: vi.fn(),
     onOpenDashboard: vi.fn(),
     canEdit: true
   };
@@ -414,17 +413,6 @@ describe('StaffInput', () => {
       expect(saveButton).toBeDisabled();
     });
 
-    it('期間がlockedの場合、同期ボタンが無効になる', () => {
-      const props = {
-        ...defaultProps,
-        selectedPeriodId: 'period-002'
-      };
-      render(<StaffInput {...props} />);
-
-      const syncButton = screen.getByText('🔄 職員を追加');
-      expect(syncButton).toBeDisabled();
-    });
-
     it('canEdit=falseの場合も閲覧専用になる', () => {
       const props = {
         ...defaultProps,
@@ -488,15 +476,6 @@ describe('StaffInput', () => {
       fireEvent.click(saveButton);
 
       expect(defaultProps.onSaveHistory).toHaveBeenCalled();
-    });
-
-    it('職員を追加ボタンクリックでonSyncが呼ばれる', () => {
-      render(<StaffInput {...defaultProps} />);
-      const syncButton = screen.getByText('🔄 職員を追加');
-
-      fireEvent.click(syncButton);
-
-      expect(defaultProps.onSync).toHaveBeenCalled();
     });
   });
 
