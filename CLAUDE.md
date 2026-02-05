@@ -859,8 +859,10 @@ npm run test:run
 | `tests/components/Layout.test.tsx` | `components/Layout.tsx` | 26 |
 | `tests/components/StaffManager.test.tsx` | `components/StaffManager.tsx` | 22 |
 | `tests/components/BaseSalaryHistoryEditor.test.tsx` | `components/BaseSalaryHistoryEditor.tsx` | 19 |
+| `tests/components/StaffInput.test.tsx` | `components/StaffInput.tsx` | 38 |
+| `tests/components/HistoryView.test.tsx` | `components/HistoryView.tsx` | 22 |
 
-**合計: 150テスト（7ファイル）**
+**合計: 210テスト（9ファイル）**
 
 #### salaryUtils.test.ts のテストケース
 
@@ -947,6 +949,30 @@ npm run test:run
 | 保存とキャンセル | 保存でonSave呼び出し、キャンセルでonClose、背景クリックでonClose |
 | 変更後の保存 | 追加後に保存で更新データが渡される |
 
+#### StaffInput.test.tsx のテストケース
+
+| カテゴリ | テストケース |
+|---------|------------|
+| 初期表示 | 評価期間選択表示、評価期間の選択肢、職員名表示、テーブルヘッダー、勤怠条件・業績評価カラム |
+| 給与計算ロジック | 基本給・資格手当・正規給与の計算、複数資格時の最優先適用、資格なし時は0円、勤怠控除・業績評価の計算、最終支給額・差分の計算 |
+| 入力操作 | 勤怠・業績入力の変更、評価期間の変更、職員名クリックでダッシュボード表示 |
+| ロック機能 | 確定ボタンでロック、ロック中は入力無効、解除ボタンでロック解除 |
+| 閲覧専用モード | 期間locked時の警告表示・入力無効・ボタン無効、canEdit=false時の動作 |
+| 複数職員 | 複数職員の表示、各職員の独立した給与計算 |
+| ボタン操作 | 履歴保存・同期ボタンのコールバック |
+| エッジケース | 評価期間なし、勤怠条件なし、業績評価なし、職員なし |
+
+#### HistoryView.test.tsx のテストケース
+
+| カテゴリ | テストケース |
+|---------|------------|
+| タブ切り替え | 評価履歴タブがデフォルト選択、変更ログタブへの切り替え、件数バッジ表示 |
+| 評価履歴タブ | 空の状態メッセージ、履歴エントリ表示、評価期間・反映期間表示、職員数・マスタ情報、複数履歴表示 |
+| 削除機能 | 削除ボタン表示、確認ダイアログ、削除実行・キャンセル |
+| 変更ログタブ | 空の状態メッセージ、ログエントリ表示、変更詳細表示、複数ログ・複数変更表示 |
+| 値のフォーマット | 金額の通貨フォーマット、勤怠・業績数値はフォーマットなし |
+| タイムスタンプ | 日本語フォーマット表示 |
+
 ### E2Eテスト
 
 #### 実施方法
@@ -1011,7 +1037,9 @@ tests/
 ├── components/
 │   ├── Layout.test.tsx                      # Layoutコンポーネント（26テスト）
 │   ├── StaffManager.test.tsx                # StaffManagerコンポーネント（22テスト）
-│   └── BaseSalaryHistoryEditor.test.tsx     # BaseSalaryHistoryEditor（19テスト）
+│   ├── BaseSalaryHistoryEditor.test.tsx     # BaseSalaryHistoryEditor（19テスト）
+│   ├── StaffInput.test.tsx                  # StaffInputコンポーネント（38テスト）
+│   └── HistoryView.test.tsx                 # HistoryViewコンポーネント（22テスト）
 └── e2e/
     └── demo-mode.spec.ts                    # Playwright E2Eテスト（手動実行）
 ```
